@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Student Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+</head>
+<body class="login-body">
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <span class="navbar-title">Amrita Vishwa Vidhyapeetam</span>
+            </a>
+        </div>
+    </nav>
+    
+    <div class="login-container">
+        <div class="login-card-inner">
+            <div class="login-card">
+                <!-- Left Side - Image Carousel -->
+                <div class="image-section">
+                <div class="image-carousel">
+                    <div class="carousel-slide active">
+                        <img src="{{ url_for('static', filename='images/campus.jpeg') }}" alt="Campus">
+                        <div class="image-title">Campus</div>
+                    </div>
+                    <div class="carousel-slide">
+                        <img src="{{ url_for('static', filename='images/students.jpeg') }}" alt="Students">
+                        <div class="image-title">Students</div>
+                    </div>
+                    <div class="carousel-slide">
+                        <img src="{{ url_for('static', filename='images/graduation.jpeg') }}" alt="Graduation">
+                        <div class="image-title">Graduation</div>
+                    </div>
+                    <div class="carousel-slide">
+                        <img src="{{ url_for('static', filename='images/lab.jpeg') }}" alt="Laboratory">
+                        <div class="image-title">Laboratory</div>
+                    </div>
+                    <div class="carousel-slide">
+                        <img src="{{ url_for('static', filename='images/auditorium.jpeg') }}" alt="Auditorium">
+                        <div class="image-title">Auditorium</div>
+                    </div>
+                    <div class="carousel-slide">
+                        <img src="{{ url_for('static', filename='images/festival.jpeg') }}" alt="Festival">
+                        <div class="image-title">Festival</div>
+                    </div>
+                </div>
+                
+                <div class="carousel-indicators">
+                    <span class="indicator active" data-slide="0"></span>
+                    <span class="indicator" data-slide="1"></span>
+                    <span class="indicator" data-slide="2"></span>
+                    <span class="indicator" data-slide="3"></span>
+                    <span class="indicator" data-slide="4"></span>
+                    <span class="indicator" data-slide="5"></span>
+                </div>
+            </div>
+            
+            <!-- Right Side - Login Form -->
+            <div class="form-section">
+                <div class="form-header">
+                    <h2>Create an account</h2>
+                </div>
+                
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <!-- User Type Selection -->
+                <div class="user-type-tabs">
+                    <button type="button" class="tab-btn active" data-type="student">
+                        <i class="fas fa-user-graduate"></i> Student
+                    </button>
+                    <button type="button" class="tab-btn" data-type="faculty">
+                        <i class="fas fa-chalkboard-teacher"></i> Faculty
+                    </button>
+                </div>
+                
+                <!-- Login Form -->
+                <form method="POST" action="{{ url_for('login_post') }}" class="login-form">
+                    <input type="hidden" name="user_type" id="selected_user_type" value="student">
+                    
+                    <div class="form-group">
+                        <input type="text" name="email" id="email" placeholder="Email or Username" required class="form-input">
+                    </div>
+                    
+                    <div class="form-group password-group">
+                        <input type="password" name="password" id="password" placeholder="Enter your password" required class="form-input">
+                        <button type="button" class="password-toggle">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    
+                    <button type="submit" class="create-btn">
+                        Create account
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Image Carousel Functionality
+        const slides = document.querySelectorAll('.carousel-slide');
+        const indicators = document.querySelectorAll('.indicator');
+        let currentSlide = 0;
+        
+        function showSlide(index) {
+            slides.forEach(slide => slide.classList.remove('active'));
+            indicators.forEach(indicator => indicator.classList.remove('active'));
+            
+            slides[index].classList.add('active');
+            indicators[index].classList.add('active');
+        }
+        
+        function nextSlide() {
+            currentSlide = (currentSlide + 1) % slides.length;
+            showSlide(currentSlide);
+        }
+        
+        // Auto-slide every 3 seconds
+        setInterval(nextSlide, 3000);
+        
+        // Manual indicator clicks
+        indicators.forEach((indicator, index) => {
+            indicator.addEventListener('click', () => {
+                currentSlide = index;
+                showSlide(currentSlide);
+            });
+        });
+        
+        // User Type Tab Functionality
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const userTypeInput = document.getElementById('selected_user_type');
+        
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                tabBtns.forEach(tab => tab.classList.remove('active'));
+                btn.classList.add('active');
+                userTypeInput.value = btn.dataset.type;
+            });
+        });
+        
+        // Password Toggle Functionality
+        const passwordToggle = document.querySelector('.password-toggle');
+        const passwordInput = document.getElementById('password');
+        
+        passwordToggle.addEventListener('click', () => {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            
+            const icon = passwordToggle.querySelector('i');
+            icon.classList.toggle('fa-eye');
+            icon.classList.toggle('fa-eye-slash');
+        });
+    });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

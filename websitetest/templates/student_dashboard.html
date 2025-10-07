@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-section">
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 sidebar">
+                <div class="sidebar-content">
+                    <div class="user-info text-center mb-4">
+                        <div class="user-avatar mb-2">
+                            <i class="fas fa-user-graduate fa-3x text-primary"></i>
+                        </div>
+                        <h6 class="fw-bold">{{ session.user_name }}</h6>
+                        <small class="text-muted">Student Portal</small>
+                    </div>
+                    
+                    <nav class="nav flex-column">
+                        <a class="nav-link active" href="#">
+                            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                        </a>
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-book me-2"></i>My Courses
+                        </a>
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-chart-bar me-2"></i>Grades
+                        </a>
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-calendar me-2"></i>Schedule
+                        </a>
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-user me-2"></i>Profile
+                        </a>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 main-content">
+                <div class="dashboard-header mb-4">
+                    <h1 class="h3 fw-bold">Student Dashboard</h1>
+                    <p class="text-muted">Welcome to your student portal</p>
+                </div>
+
+                <!-- Available Courses -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="admin-section">
+                            <div class="section-header">
+                                <h4><i class="fas fa-book text-primary me-2"></i>Available Courses for {{ student_program }}</h4>
+                            </div>
+                            {% if available_courses %}
+                            <div class="row">
+                                {% for course in available_courses %}
+                                <div class="col-md-6 col-lg-4 mb-3">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title">{{ course.course_name }}</h6>
+                                            <p class="card-text">
+                                                <small class="text-muted">{{ course.course_code }}</small><br>
+                                                <span class="badge bg-info">{{ format_semester(course.semester) }}</span>
+                                            </p>
+                                            <form method="POST" action="{{ url_for('enroll_course') }}" class="d-inline">
+                                                <input type="hidden" name="course_id" value="{{ course.course_id }}">
+                                                <button type="submit" class="btn btn-primary btn-sm">
+                                                    <i class="fas fa-plus me-1"></i>Enroll
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="text-muted">No courses available for your program.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Enrolled Courses -->
+                <!-- Active Feedback Sessions -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="admin-section">
+                            <div class="section-header">
+                                <h4><i class="fas fa-comments text-secondary me-2"></i>Active Feedback Forms</h4>
+                            </div>
+                            {% if active_sessions %}
+                            <div class="list-group">
+                                {% for s in active_sessions %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>{{ s.session_id }}</strong> for <em>{{ s.course_id }}</em>
+                                        <div><small>Closes: {{ s.end_date }}</small></div>
+                                    </div>
+                                    <div>
+                                        <a class="btn btn-primary btn-sm" href="{{ url_for('feedback_form', session_id=s.session_id) }}">Fill Form</a>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="text-muted">No active feedback forms at the moment.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="admin-section">
+                            <div class="section-header">
+                                <h4><i class="fas fa-graduation-cap text-success me-2"></i>My Enrolled Courses</h4>
+                            </div>
+                            {% if enrolled_courses %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Course Code</th>
+                                            <th>Course Name</th>
+                                            <th>Semester</th>
+                                            <th>Faculty</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for course in enrolled_courses %}
+                                        <tr>
+                                            <td><strong>{{ course.course_code }}</strong></td>
+                                            <td>{{ course.course_name }}</td>
+                                            <td><span class="badge bg-info">{{ format_semester(course.semester) }}</span></td>
+                                            <td>{{ course.faculty_name or 'Not Assigned' }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted">You are not enrolled in any courses yet.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

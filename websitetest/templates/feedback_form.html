@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h3>Feedback Form for {{ session.session_id }} - {{ session.course_id }}</h3>
+    <p>Faculty: {{ session.faculty_id if session.faculty_id is defined else 'N/A' }} | Opens: {{ session.start_date }} | Closes: {{ session.end_date }}</p>
+
+    <form method="POST" action="{{ url_for('submit_feedback', session_id=session.session_id) }}">
+        <input type="hidden" name="course_id" value="{{ session.course_id }}">
+        <input type="hidden" name="faculty_id" value="{{ session.faculty_id if session.faculty_id is defined else '' }}">
+
+        <div class="list-group mb-3">
+            <!-- Fixed set of 10 questions -->
+            <div class="list-group-item">
+                <label class="form-label">1. The instructor explained the course objectives clearly.</label>
+                <input type="hidden" name="question_1_id" value="Q001">
+                <select name="question_1" class="form-select" required>
+                    <option value="">Select rating</option>
+                    <option value="1">1 - Poor</option>
+                    <option value="2">2 - Fair</option>
+                    <option value="3">3 - Good</option>
+                    <option value="4">4 - Very Good</option>
+                    <option value="5">5 - Excellent</option>
+                </select>
+            </div>
+
+            <div class="list-group-item">
+                <label class="form-label">2. The instructor was well prepared for classes.</label>
+                <input type="hidden" name="question_2_id" value="Q002">
+                <select name="question_2" class="form-select" required>
+                    <option value="">Select rating</option>
+                    <option value="1">1 - Poor</option>
+                    <option value="2">2 - Fair</option>
+                    <option value="3">3 - Good</option>
+                    <option value="4">4 - Very Good</option>
+                    <option value="5">5 - Excellent</option>
+                </select>
+            </div>
+
+            <div class="list-group-item">
+                <label class="form-label">3. The instructor communicated concepts clearly.</label>
+                <input type="hidden" name="question_3_id" value="Q003">
+                <select name="question_3" class="form-select" required>
+                    <option value="">Select rating</option>
+                    <option value="1">1 - Poor</option>
+                    <option value="2">2 - Fair</option>
+                    <option value="3">3 - Good</option>
+                    <option value="4">4 - Very Good</option>
+                    <option value="5">5 - Excellent</option>
+                </select>
+            </div>
+
+            <div class="list-group-item">
+                <label class="form-label">4. The instructor encouraged student participation.</label>
+                <input type="hidden" name="question_4_id" value="Q004">
+                <select name="question_4" class="form-select" required>
+                    <option value="">Select rating</option>
+                    <option value="1">1 - Poor</option>
+                    <option value="2">2 - Fair</option>
+                    <option value="3">3 - Good</option>
+                    <option value="4">4 - Very Good</option>
+                    <option value="5">5 - Excellent</option>
+                </select>
+            </div>
+
+            <div class="list-group-item">
+                <label class="form-label">5. The course materials (slides, notes, assignments) were helpful.</label>
+                <input type="hidden" name="question_5_id" value="Q005">
+                <select name="question_5" class="form-select" required>
+                    <option value="">Select rating</option>
+                    <option value="1">1 - Poor</option>
+                    <option value="2">2 - Fair</option>
+                    <option value="3">3 - Good</option>
+                    <option value="4">4 - Very Good</option>
+                    <option value="5">5 - Excellent</option>
+                </select>
+            </div>
+
+            <div class="list-group-item">
+                <label class="form-label">6. The instructor provided useful feedback on assessments.</label>
+                <input type="hidden" name="question_6_id" value="Q006">
+                <select name="question_6" class="form-select" required>
+                    <option value="">Select rating</option>
+                    <option value="1">1 - Poor</option>
+                    <option value="2">2 - Fair</option>
+                    <option value="3">3 - Good</option>
+                    <option value="4">4 - Very Good</option>
+                    <option value="5">5 - Excellent</option>
+                </select>
+            </div>
+
+            <div class="list-group-item">
+                <label class="form-label">7. The pace of the course was appropriate.</label>
+                <input type="hidden" name="question_7_id" value="Q007">
+                <select name="question_7" class="form-select" required>
+                    <option value="">Select rating</option>
+                    <option value="1">1 - Poor</option>
+                    <option value="2">2 - Fair</option>
+                    <option value="3">3 - Good</option>
+                    <option value="4">4 - Very Good</option>
+                    <option value="5">5 - Excellent</option>
+                </select>
+            </div>
+
+            <div class="list-group-item">
+                <label class="form-label">8. The instructor was available and responsive to student queries.</label>
+                <input type="hidden" name="question_8_id" value="Q008">
+                <select name="question_8" class="form-select" required>
+                    <option value="">Select rating</option>
+                    <option value="1">1 - Poor</option>
+                    <option value="2">2 - Fair</option>
+                    <option value="3">3 - Good</option>
+                    <option value="4">4 - Very Good</option>
+                    <option value="5">5 - Excellent</option>
+                </select>
+            </div>
+
+            <div class="list-group-item">
+                <label class="form-label">9. The assessments/tested learning outcomes aligned with course objectives.</label>
+                <input type="hidden" name="question_9_id" value="Q009">
+                <select name="question_9" class="form-select" required>
+                    <option value="">Select rating</option>
+                    <option value="1">1 - Poor</option>
+                    <option value="2">2 - Fair</option>
+                    <option value="3">3 - Good</option>
+                    <option value="4">4 - Very Good</option>
+                    <option value="5">5 - Excellent</option>
+                </select>
+            </div>
+
+            <div class="list-group-item">
+                <label class="form-label">10. Overall, I am satisfied with the instructor and the course.</label>
+                <input type="hidden" name="question_10_id" value="Q010">
+                <select name="question_10" class="form-select" required>
+                    <option value="">Select rating</option>
+                    <option value="1">1 - Poor</option>
+                    <option value="2">2 - Fair</option>
+                    <option value="3">3 - Good</option>
+                    <option value="4">4 - Very Good</option>
+                    <option value="5">5 - Excellent</option>
+                </select>
+            </div>
+        </div>
+
+        <h5>Strengths</h5>
+        <textarea class="form-control mb-2" name="strengths" rows="2">{{ remarks.strengths if remarks }}</textarea>
+
+        <h5>Weaknesses</h5>
+        <textarea class="form-control mb-2" name="weaknesses" rows="2">{{ remarks.weaknesses if remarks }}</textarea>
+
+        <h5>Area of Improvement</h5>
+        <textarea class="form-control mb-2" name="area_of_improvement" rows="2">{{ remarks.area_of_improvement if remarks }}</textarea>
+
+        <button class="btn btn-primary mt-3" type="submit">Submit Feedback</button>
+    </form>
+</div>
+{% endblock %}

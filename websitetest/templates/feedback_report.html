@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h3>Feedback Report for {{ session.session_id }} - {{ session.course_id }}</h3>
+    <p>Faculty: {{ session.faculty_id }} | Opened: {{ session.start_date }} | Closed: {{ session.end_date }}</p>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>Overall Average Score: {{ overall.overall_avg if overall and overall.overall_avg else 'N/A' }}</h5>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>Average per Question</h5>
+            <ul class="list-group">
+                {% for pq in per_question %}
+                <li class="list-group-item">{{ pq.question_id }} - {{ '%.2f'|format(pq.avg_rating) }}</li>
+                {% else %}
+                <li class="list-group-item text-muted">No ratings found</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5>Remarks (Strengths / Weaknesses / Area of Improvement)</h5>
+            {% for r in remarks %}
+            <div class="mb-3">
+                <strong>{{ r.student_id }}</strong>
+                <p><strong>Strengths:</strong> {{ r.strengths }}</p>
+                <p><strong>Weaknesses:</strong> {{ r.weaknesses }}</p>
+                <p><strong>Area of Improvement:</strong> {{ r.area_of_improvement }}</p>
+                <hr>
+            </div>
+            {% else %}
+            <p class="text-muted">No remarks submitted yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
