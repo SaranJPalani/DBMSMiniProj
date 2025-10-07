@@ -91,7 +91,8 @@
                                 {% for s in active_sessions %}
                                 <div class="list-group-item d-flex justify-content-between align-items-center">
                                     <div>
-                                        <strong>{{ s.session_id }}</strong> for <em>{{ s.course_id }}</em>
+                                        <strong>{{ s.session_id }}</strong> for <em>{{ s.course_name or s.course_id }}</em>
+                                        <div><small>Faculty: {{ s.faculty_name or 'TBD' }}</small></div>
                                         <div><small>Closes: {{ s.end_date }}</small></div>
                                     </div>
                                     <div>

@@ -42,6 +42,7 @@
                 <tr>
                   <th>Session ID</th>
                   <th>Course</th>
+                  <th>Faculty</th>
                   <th>Start</th>
                   <th>End</th>
                   <th>Status</th>
@@ -53,7 +54,8 @@
                   {% for s in sessions %}
                     <tr>
                       <td><strong>{{ s.session_id }}</strong></td>
-                      <td>{{ s.course_id }}</td>
+                      <td>{{ s.course_name or s.course_id }}</td>
+                      <td>{{ s.faculty_name or s.faculty_id }}</td>
                       <td>{{ s.start_date }}</td>
                       <td>{{ s.end_date }}</td>
                       <td><span class="badge bg-{{ 'success' if s.status == 'Active' else 'secondary' }}">{{ s.status }}</span></td>
@@ -68,7 +70,7 @@
                     </tr>
                   {% endfor %}
                 {% else %}
-                  <tr><td colspan="6" class="text-center text-muted">No feedback sessions. Create one using the button.</td></tr>
+                  <tr><td colspan="7" class="text-center text-muted">No feedback sessions. Create one using the button.</td></tr>
                 {% endif %}
               </tbody>
             </table>
@@ -256,6 +258,12 @@
             <select class="form-select" id="session_course" name="course_id" required>
               <option value="">Select Course</option>
               {% for course in courses %}<option value="{{ course.course_id }}">{{ course.course_name }} ({{ course.course_id }})</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-3"><label for="session_faculty" class="form-label">Faculty</label>
+            <select class="form-select" id="session_faculty" name="faculty_id" required>
+              <option value="">Select Faculty</option>
+              {% for f in faculty %}<option value="{{ f.faculty_id }}">{{ f.name }} ({{ f.faculty_id }})</option>{% endfor %}
             </select>
           </div>
           <div class="mb-3"><label for="start_date" class="form-label">Start</label><input type="datetime-local" class="form-control" id="start_date" name="start_date" required></div>

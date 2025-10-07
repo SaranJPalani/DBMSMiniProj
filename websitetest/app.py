@@ -27,6 +27,28 @@ def get_db_connection():
     except mysql.connector.Error:
         return None
 
+
+def run_query(query, params=None, *, fetchone=False, fetchall=False, dictionary=False, commit=False):
+    conn = get_db_connection()
+    if not conn:
+        raise mysql.connector.Error('Unable to connect to database')
+
+    cursor = conn.cursor(dictionary=dictionary)
+    try:
+        cursor.execute(query, params or ())
+
+        if commit:
+            conn.commit()
+
+        if fetchone:
+            return cursor.fetchone()
+        if fetchall:
+            return cursor.fetchall()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
 def custom_hash(password):
     salt = secrets.token_hex(16)
     hashed = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
@@ -63,37 +85,30 @@ def login_post():
         flash('Welcome Administrator!', 'success')
         return redirect(url_for('admin_dashboard'))
     
-    conn = get_db_connection()
-    
-    if conn:
-        cursor = conn.cursor(dictionary=True)
-        try:
-            if user_type == 'student':
-                cursor.execute("SELECT * FROM students WHERE email = %s OR student_id = %s", (user_id, user_id))
-                user = cursor.fetchone()
-                if user and verify_password(password, user['password_hash']):
-                    session['user_id'] = user['student_id']
-                    session['user_type'] = 'student'
-                    session['user_name'] = user['name']
-                    flash(f'Welcome {user["name"]}!', 'success')
-                    return redirect(url_for('student_dashboard'))
-            
-            elif user_type == 'faculty':
-                cursor.execute("SELECT * FROM faculty WHERE email = %s OR faculty_id = %s", (user_id, user_id))
-                user = cursor.fetchone()
-                if user and verify_password(password, user['password_hash']):
-                    session['user_id'] = user['faculty_id']
-                    session['user_type'] = 'faculty'
-                    session['user_name'] = user['name']
-                    flash(f'Welcome {user["name"]}!', 'success')
-                    return redirect(url_for('faculty_dashboard'))
-            
-        except mysql.connector.Error as err:
-            flash(f'Database error: {err}', 'error')
-        finally:
-            cursor.close()
-            conn.close()
-    
+    try:
+        if user_type == 'student':
+            user = run_query("SELECT * FROM students WHERE email = %s OR student_id = %s",
+                             (user_id, user_id), fetchone=True, dictionary=True)
+            if user and verify_password(password, user['password_hash']):
+                session['user_id'] = user['student_id']
+                session['user_type'] = 'student'
+                session['user_name'] = user['name']
+                flash(f'Welcome {user["name"]}!', 'success')
+                return redirect(url_for('student_dashboard'))
+
+        elif user_type == 'faculty':
+            user = run_query("SELECT * FROM faculty WHERE email = %s OR faculty_id = %s",
+                             (user_id, user_id), fetchone=True, dictionary=True)
+            if user and verify_password(password, user['password_hash']):
+                session['user_id'] = user['faculty_id']
+                session['user_type'] = 'faculty'
+                session['user_name'] = user['name']
+                flash(f'Welcome {user["name"]}!', 'success')
+                return redirect(url_for('faculty_dashboard'))
+
+    except mysql.connector.Error as err:
+        flash(f'Database error: {err}', 'error')
+
     flash('Invalid credentials', 'error')
     return redirect(url_for('login'))
 
@@ -103,50 +118,61 @@ def student_dashboard():
         return redirect(url_for('login'))
     
     student_id = session['user_id']
-    conn = get_db_connection()
-    
-    if conn:
-        cursor = conn.cursor(dictionary=True)
-        try:
-            cursor.execute("SELECT program FROM students WHERE student_id = %s", (student_id,))
-            student = cursor.fetchone()
-            
-            if not student:
-                flash('Student not found', 'error')
-                return redirect(url_for('login'))
-            
-            student_program = student['program']
-            
-            cursor.execute("""
-                SELECT c.* FROM courses c 
-                WHERE c.course_id NOT IN (
-                    SELECT e.course_id FROM enroll e WHERE e.student_id = %s
-                )
-            """, (student_id,))
-            available_courses = cursor.fetchall()
-            
-            cursor.execute("""
-                SELECT c.*, f.name as faculty_name 
-                FROM courses c
-                JOIN enroll e ON c.course_id = e.course_id
-                LEFT JOIN taughtby tb ON c.course_id = tb.course_id
-                LEFT JOIN faculty f ON tb.faculty_id = f.faculty_id
-                WHERE e.student_id = %s
-            """, (student_id,))
-            enrolled_courses = cursor.fetchall()
 
-            # Fetch active feedback sessions for the student's enrolled courses
-            cursor.execute("SELECT fs.* FROM feedbacksession fs JOIN enroll e ON fs.course_id = e.course_id WHERE e.student_id = %s AND fs.start_date <= NOW() AND fs.end_date >= NOW()", (student_id,))
-            active_sessions = cursor.fetchall()
-            
-            return render_template('student_dashboard.html', 
-                                 available_courses=available_courses,
-                                 enrolled_courses=enrolled_courses,
-                                 student_program=student_program,
-                                 active_sessions=active_sessions)
-        finally:
-            cursor.close()
-            conn.close()
+    try:
+        student = run_query("SELECT program FROM students WHERE student_id = %s", (student_id,),
+                             fetchone=True, dictionary=True)
+        if not student:
+            flash('Student not found', 'error')
+            return redirect(url_for('login'))
+
+        student_program = student['program']
+
+        available_courses = run_query(
+            """
+            SELECT c.* FROM courses c 
+            WHERE c.course_id NOT IN (
+                SELECT e.course_id FROM enroll e WHERE e.student_id = %s
+            )
+            """,
+            (student_id,), fetchall=True, dictionary=True
+        )
+
+        enrolled_courses = run_query(
+            """
+            SELECT c.*, f.name as faculty_name 
+            FROM courses c
+            JOIN enroll e ON c.course_id = e.course_id
+            LEFT JOIN taughtby tb ON c.course_id = tb.course_id
+            LEFT JOIN faculty f ON tb.faculty_id = f.faculty_id
+            WHERE e.student_id = %s
+            """,
+            (student_id,), fetchall=True, dictionary=True
+        )
+
+        active_sessions = run_query(
+            """
+            SELECT fs.*, c.course_name, f.name AS faculty_name
+            FROM feedbacksession fs
+            JOIN enroll e ON fs.course_id = e.course_id
+            LEFT JOIN courses c ON fs.course_id = c.course_id
+            LEFT JOIN faculty f ON fs.faculty_id = f.faculty_id
+            WHERE e.student_id = %s
+              AND fs.start_date <= NOW()
+              AND fs.end_date >= NOW()
+            """,
+            (student_id,), fetchall=True, dictionary=True
+        )
+
+    except mysql.connector.Error as err:
+        flash(f'Database error: {err}', 'error')
+        return redirect(url_for('login'))
+
+    return render_template('student_dashboard.html',
+                           available_courses=available_courses,
+                           enrolled_courses=enrolled_courses,
+                           student_program=student_program,
+                           active_sessions=active_sessions)
 
 @app.route('/faculty_dashboard')
 def faculty_dashboard():
@@ -154,76 +180,88 @@ def faculty_dashboard():
         return redirect(url_for('login'))
     
     faculty_id = session['user_id']
-    conn = get_db_connection()
-    
-    if conn:
-        cursor = conn.cursor(dictionary=True)
-        try:
-            cursor.execute("""
-                SELECT c.*, tb.semester
-                FROM courses c
-                JOIN taughtby tb ON c.course_id = tb.course_id
-                WHERE tb.faculty_id = %s
-            """, (faculty_id,))
-            taught_courses = cursor.fetchall()
-            
-            course_students = {}
-            for course in taught_courses:
-                cursor.execute("""
-                    SELECT s.student_id, s.name, s.email, s.program
-                    FROM students s
-                    JOIN enroll e ON s.student_id = e.student_id
-                    WHERE e.course_id = %s
-                """, (course['course_id'],))
-                course_students[course['course_id']] = cursor.fetchall()
-            
-            return render_template('faculty_dashboard.html', 
-                                 taught_courses=taught_courses,
-                                 course_students=course_students)
-        finally:
-            cursor.close()
-            conn.close()
+
+    try:
+        taught_courses = run_query(
+            """
+            SELECT c.*, tb.semester
+            FROM courses c
+            JOIN taughtby tb ON c.course_id = tb.course_id
+            WHERE tb.faculty_id = %s
+            """,
+            (faculty_id,), fetchall=True, dictionary=True
+        )
+
+        course_students = {}
+        for course in taught_courses:
+            course_students[course['course_id']] = run_query(
+                """
+                SELECT s.student_id, s.name, s.email, s.program
+                FROM students s
+                JOIN enroll e ON s.student_id = e.student_id
+                WHERE e.course_id = %s
+                """,
+                (course['course_id'],), fetchall=True, dictionary=True
+            )
+
+        faculty_sessions = run_query(
+            """
+            SELECT fs.*, c.course_name
+            FROM feedbacksession fs
+            JOIN courses c ON fs.course_id = c.course_id
+            WHERE fs.faculty_id = %s
+            ORDER BY fs.start_date DESC
+            """,
+            (faculty_id,), fetchall=True, dictionary=True
+        )
+
+    except mysql.connector.Error as err:
+        flash(f'Database error: {err}', 'error')
+        return redirect(url_for('login'))
+
+    return render_template('faculty_dashboard.html',
+                           taught_courses=taught_courses,
+                           course_students=course_students,
+                           faculty_sessions=faculty_sessions)
 
 @app.route('/admin_dashboard')
 def admin_dashboard():
     if 'user_id' not in session or session.get('user_type') != 'admin':
         return redirect(url_for('login'))
     
-    conn = get_db_connection()
-    
-    if conn:
-        cursor = conn.cursor(dictionary=True)
-        try:
-            cursor.execute("SELECT * FROM students ORDER BY student_id")
-            students = cursor.fetchall()
-            
-            cursor.execute("SELECT * FROM faculty ORDER BY faculty_id")
-            faculty = cursor.fetchall()
-            
-            cursor.execute("SELECT * FROM courses ORDER BY course_id")
-            courses = cursor.fetchall()
-            
-            cursor.execute("""
-                SELECT tb.*, f.name as faculty_name, c.course_name 
-                FROM taughtby tb
-                JOIN faculty f ON tb.faculty_id = f.faculty_id
-                JOIN courses c ON tb.course_id = c.course_id
-            """)
-            assignments = cursor.fetchall()
+    try:
+        students = run_query("SELECT * FROM students ORDER BY student_id", fetchall=True, dictionary=True)
+        faculty = run_query("SELECT * FROM faculty ORDER BY faculty_id", fetchall=True, dictionary=True)
+        courses = run_query("SELECT * FROM courses ORDER BY course_id", fetchall=True, dictionary=True)
+        assignments = run_query(
+            """
+            SELECT tb.*, f.name as faculty_name, c.course_name 
+            FROM taughtby tb
+            JOIN faculty f ON tb.faculty_id = f.faculty_id
+            JOIN courses c ON tb.course_id = c.course_id
+            """,
+            fetchall=True, dictionary=True
+        )
+        sessions = run_query(
+            """
+            SELECT fs.*, c.course_name, f.name AS faculty_name
+            FROM feedbacksession fs
+            LEFT JOIN courses c ON fs.course_id = c.course_id
+            LEFT JOIN faculty f ON fs.faculty_id = f.faculty_id
+            ORDER BY fs.start_date DESC
+            """,
+            fetchall=True, dictionary=True
+        )
+    except mysql.connector.Error as err:
+        flash(f'Database error: {err}', 'error')
+        return redirect(url_for('login'))
 
-            # Fetch all feedback sessions for admin view
-            cursor.execute("SELECT * FROM feedbacksession ORDER BY start_date DESC")
-            sessions = cursor.fetchall()
-            
-            return render_template('admin_dashboard.html', 
-                                 students=students, 
-                                 faculty=faculty, 
-                                 courses=courses, 
-                                 assignments=assignments,
-                                 sessions=sessions)
-        finally:
-            cursor.close()
-            conn.close()
+    return render_template('admin_dashboard.html',
+                           students=students,
+                           faculty=faculty,
+                           courses=courses,
+                           assignments=assignments,
+                           sessions=sessions)
 
 @app.route('/add_student', methods=['POST'])
 def add_student():
@@ -242,21 +280,18 @@ def add_student():
     
     password_hash = custom_hash(password)
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
     try:
-        cursor.execute("""
+        run_query(
+            """
             INSERT INTO students (student_id, name, email, password_hash, program)
             VALUES (%s, %s, %s, %s, %s)
-        """, (student_id, name, email, password_hash, program))
-        conn.commit()
+            """,
+            (student_id, name, email, password_hash, program),
+            commit=True
+        )
         flash('Student added successfully!', 'success')
     except mysql.connector.Error as err:
         flash(f'Error adding student: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
     
     return redirect(url_for('admin_dashboard'))
 
@@ -275,18 +310,12 @@ def edit_student():
         flash('Please fill in all fields', 'error')
         return redirect(url_for('admin_dashboard'))
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute("UPDATE students SET name=%s, email=%s, program=%s WHERE student_id=%s",
-                       (name, email, program, student_id))
-        conn.commit()
+        run_query("UPDATE students SET name=%s, email=%s, program=%s WHERE student_id=%s",
+                  (name, email, program, student_id), commit=True)
         flash('Student updated successfully!', 'success')
     except mysql.connector.Error as err:
         flash(f'Error updating student: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
 
     return redirect(url_for('admin_dashboard'))
 
@@ -296,17 +325,11 @@ def delete_student(student_id):
     if 'user_id' not in session or session.get('user_type') != 'admin':
         return redirect(url_for('login'))
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM students WHERE student_id=%s", (student_id,))
-        conn.commit()
+        run_query("DELETE FROM students WHERE student_id=%s", (student_id,), commit=True)
         flash('Student deleted successfully', 'success')
     except mysql.connector.Error as err:
         flash(f'Error deleting student: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
 
     return redirect(url_for('admin_dashboard'))
 
@@ -327,21 +350,18 @@ def add_faculty():
     
     password_hash = custom_hash(password)
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
     try:
-        cursor.execute("""
+        run_query(
+            """
             INSERT INTO faculty (faculty_id, name, email, password_hash, department)
             VALUES (%s, %s, %s, %s, %s)
-        """, (faculty_id, name, email, password_hash, department))
-        conn.commit()
+            """,
+            (faculty_id, name, email, password_hash, department),
+            commit=True
+        )
         flash('Faculty added successfully!', 'success')
     except mysql.connector.Error as err:
         flash(f'Error adding faculty: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
     
     return redirect(url_for('admin_dashboard'))
 
@@ -360,18 +380,12 @@ def edit_faculty():
         flash('Please fill in all fields', 'error')
         return redirect(url_for('admin_dashboard'))
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute("UPDATE faculty SET name=%s, email=%s, department=%s WHERE faculty_id=%s",
-                       (name, email, department, faculty_id))
-        conn.commit()
+        run_query("UPDATE faculty SET name=%s, email=%s, department=%s WHERE faculty_id=%s",
+                  (name, email, department, faculty_id), commit=True)
         flash('Faculty updated successfully!', 'success')
     except mysql.connector.Error as err:
         flash(f'Error updating faculty: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
 
     return redirect(url_for('admin_dashboard'))
 
@@ -380,17 +394,11 @@ def edit_faculty():
 def delete_faculty(faculty_id):
     if 'user_id' not in session or session.get('user_type') != 'admin':
         return redirect(url_for('login'))
-    conn = get_db_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM faculty WHERE faculty_id=%s", (faculty_id,))
-        conn.commit()
+        run_query("DELETE FROM faculty WHERE faculty_id=%s", (faculty_id,), commit=True)
         flash('Faculty deleted successfully', 'success')
     except mysql.connector.Error as err:
         flash(f'Error deleting faculty: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
 
     return redirect(url_for('admin_dashboard'))
 
@@ -408,21 +416,18 @@ def add_course():
         flash('Please fill in all fields', 'error')
         return redirect(url_for('admin_dashboard'))
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
     try:
-        cursor.execute("""
+        run_query(
+            """
             INSERT INTO courses (course_id, course_name, course_code, semester)
             VALUES (%s, %s, %s, %s)
-        """, (course_id, course_name, course_code, semester))
-        conn.commit()
+            """,
+            (course_id, course_name, course_code, semester),
+            commit=True
+        )
         flash('Course added successfully!', 'success')
     except mysql.connector.Error as err:
         flash(f'Error adding course: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
     
     return redirect(url_for('admin_dashboard'))
 
@@ -441,18 +446,12 @@ def edit_course():
         flash('Please fill in all fields', 'error')
         return redirect(url_for('admin_dashboard'))
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute("UPDATE courses SET course_name=%s, course_code=%s, semester=%s WHERE course_id=%s",
-                       (course_name, course_code, semester, course_id))
-        conn.commit()
+        run_query("UPDATE courses SET course_name=%s, course_code=%s, semester=%s WHERE course_id=%s",
+                  (course_name, course_code, semester, course_id), commit=True)
         flash('Course updated successfully!', 'success')
     except mysql.connector.Error as err:
         flash(f'Error updating course: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
 
     return redirect(url_for('admin_dashboard'))
 
@@ -461,17 +460,11 @@ def edit_course():
 def delete_course(course_id):
     if 'user_id' not in session or session.get('user_type') != 'admin':
         return redirect(url_for('login'))
-    conn = get_db_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM courses WHERE course_id=%s", (course_id,))
-        conn.commit()
+        run_query("DELETE FROM courses WHERE course_id=%s", (course_id,), commit=True)
         flash('Course deleted successfully', 'success')
     except mysql.connector.Error as err:
         flash(f'Error deleting course: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
 
     return redirect(url_for('admin_dashboard'))
 
@@ -488,21 +481,18 @@ def assign_faculty():
         flash('Please fill in all fields', 'error')
         return redirect(url_for('admin_dashboard'))
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
     try:
-        cursor.execute("""
+        run_query(
+            """
             INSERT INTO taughtby (faculty_id, course_id, semester)
             VALUES (%s, %s, %s)
-        """, (faculty_id, course_id, semester))
-        conn.commit()
+            """,
+            (faculty_id, course_id, semester),
+            commit=True
+        )
         flash('Faculty assigned to course successfully!', 'success')
     except mysql.connector.Error as err:
         flash(f'Error assigning faculty: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
     
     return redirect(url_for('admin_dashboard'))
 
@@ -520,17 +510,12 @@ def edit_assignment():
         flash('Please fill in all fields', 'error')
         return redirect(url_for('admin_dashboard'))
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute("UPDATE taughtby SET semester=%s WHERE faculty_id=%s AND course_id=%s", (semester, faculty_id, course_id))
-        conn.commit()
+        run_query("UPDATE taughtby SET semester=%s WHERE faculty_id=%s AND course_id=%s",
+                  (semester, faculty_id, course_id), commit=True)
         flash('Assignment updated successfully', 'success')
     except mysql.connector.Error as err:
         flash(f'Error updating assignment: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
 
     return redirect(url_for('admin_dashboard'))
 
@@ -542,17 +527,12 @@ def delete_assignment():
 
     faculty_id = request.form.get('faculty_id')
     course_id = request.form.get('course_id')
-    conn = get_db_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM taughtby WHERE faculty_id=%s AND course_id=%s", (faculty_id, course_id))
-        conn.commit()
+        run_query("DELETE FROM taughtby WHERE faculty_id=%s AND course_id=%s",
+                  (faculty_id, course_id), commit=True)
         flash('Assignment removed', 'success')
     except mysql.connector.Error as err:
         flash(f'Error removing assignment: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
 
     return redirect(url_for('admin_dashboard'))
 
@@ -568,30 +548,28 @@ def enroll_course():
         flash('Please select a course', 'error')
         return redirect(url_for('student_dashboard'))
     
-    conn = get_db_connection()
-    
-    if conn:
-        cursor = conn.cursor()
-        try:
-            cursor.execute("""
-                SELECT COUNT(*) FROM enroll 
-                WHERE student_id = %s AND course_id = %s
-            """, (student_id, course_id))
-            
-            if cursor.fetchone()[0] > 0:
-                flash('You are already enrolled in this course!', 'warning')
-            else:
-                cursor.execute("""
-                    INSERT INTO enroll (student_id, course_id)
-                    VALUES (%s, %s)
-                """, (student_id, course_id))
-                conn.commit()
-                flash('Successfully enrolled in course!', 'success')
-        except mysql.connector.Error as err:
-            flash(f'Error enrolling: {err}', 'error')
-        finally:
-            cursor.close()
-            conn.close()
+    try:
+        result = run_query(
+            """
+            SELECT COUNT(*) FROM enroll 
+            WHERE student_id = %s AND course_id = %s
+            """,
+            (student_id, course_id), fetchone=True
+        )
+
+        if result and result[0] > 0:
+            flash('You are already enrolled in this course!', 'warning')
+        else:
+            run_query(
+                """
+                INSERT INTO enroll (student_id, course_id)
+                VALUES (%s, %s)
+                """,
+                (student_id, course_id), commit=True
+            )
+            flash('Successfully enrolled in course!', 'success')
+    except mysql.connector.Error as err:
+        flash(f'Error enrolling: {err}', 'error')
     
     return redirect(url_for('student_dashboard'))
 
@@ -603,10 +581,11 @@ def create_feedback_session():
 
     session_id = request.form.get('session_id')
     course_id = request.form.get('course_id')
+    faculty_id = request.form.get('faculty_id')
     start_date = request.form.get('start_date')
     end_date = request.form.get('end_date')
 
-    if not all([session_id, course_id, start_date, end_date]):
+    if not all([session_id, course_id, faculty_id, start_date, end_date]):
         flash('Please fill in all fields for the feedback session', 'error')
         return redirect(url_for('admin_dashboard'))
 
@@ -621,21 +600,65 @@ def create_feedback_session():
         flash('Invalid date format. Use YYYY-MM-DDTHH:MM:SS', 'error')
         return redirect(url_for('admin_dashboard'))
 
-    conn = get_db_connection()
-    if conn:
-        cursor = conn.cursor()
-        try:
-            cursor.execute("INSERT INTO feedbacksession (session_id, course_id, start_date, end_date, status) VALUES (%s, %s, %s, %s, %s)",
-                           (session_id, course_id, sd, ed, 'Active'))
-            conn.commit()
-            flash('Feedback session created successfully', 'success')
-        except mysql.connector.Error as err:
-            flash(f'Error creating session: {err}', 'error')
-        finally:
-            cursor.close()
-            conn.close()
+    try:
+        run_query(
+            "INSERT INTO feedbacksession (session_id, course_id, faculty_id, start_date, end_date, status) VALUES (%s, %s, %s, %s, %s, %s)",
+            (session_id, course_id, faculty_id, sd, ed, 'Active'),
+            commit=True
+        )
+        flash('Feedback session created successfully', 'success')
+    except mysql.connector.Error as err:
+        flash(f'Error creating session: {err}', 'error')
 
     return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/faculty_create_feedback_session', methods=['POST'])
+def faculty_create_feedback_session():
+    if 'user_id' not in session or session.get('user_type') != 'faculty':
+        return redirect(url_for('login'))
+
+    faculty_id = session['user_id']
+    session_id = request.form.get('session_id')
+    course_id = request.form.get('course_id')
+    start_date = request.form.get('start_date')
+    end_date = request.form.get('end_date')
+
+    if not all([session_id, course_id, start_date, end_date]):
+        flash('Please fill in all fields for the feedback session', 'error')
+        return redirect(url_for('faculty_dashboard'))
+
+    try:
+        taught = run_query("SELECT 1 FROM taughtby WHERE faculty_id=%s AND course_id=%s",
+                           (faculty_id, course_id), fetchone=True)
+        if not taught:
+            flash('You can only create sessions for courses you teach', 'error')
+            return redirect(url_for('faculty_dashboard'))
+    except mysql.connector.Error as err:
+        flash(f'Error creating session: {err}', 'error')
+        return redirect(url_for('faculty_dashboard'))
+
+    try:
+        sd = datetime.fromisoformat(start_date)
+        ed = datetime.fromisoformat(end_date)
+        if ed <= sd:
+            flash('End date must be after start date', 'error')
+            return redirect(url_for('faculty_dashboard'))
+    except ValueError:
+        flash('Invalid date format. Use YYYY-MM-DDTHH:MM', 'error')
+        return redirect(url_for('faculty_dashboard'))
+
+    try:
+        run_query(
+            "INSERT INTO feedbacksession (session_id, course_id, faculty_id, start_date, end_date, status) VALUES (%s, %s, %s, %s, %s, %s)",
+            (session_id, course_id, faculty_id, sd, ed, 'Active'),
+            commit=True
+        )
+        flash('Feedback session created successfully', 'success')
+    except mysql.connector.Error as err:
+        flash(f'Error creating session: {err}', 'error')
+
+    return redirect(url_for('faculty_dashboard'))
 
 
 @app.route('/feedback_form/<session_id>', methods=['GET'])
@@ -644,15 +667,9 @@ def feedback_form(session_id):
         return redirect(url_for('login'))
 
     student_id = session['user_id']
-    conn = get_db_connection()
-    if not conn:
-        flash('Database connection error', 'error')
-        return redirect(url_for('student_dashboard'))
-
-    cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT * FROM feedbacksession WHERE session_id = %s", (session_id,))
-        fs = cursor.fetchone()
+        fs = run_query("SELECT * FROM feedbacksession WHERE session_id = %s", (session_id,),
+                       fetchone=True, dictionary=True)
         if not fs:
             flash('Feedback session not found', 'error')
             return redirect(url_for('student_dashboard'))
@@ -665,18 +682,16 @@ def feedback_form(session_id):
             flash('This feedback form is not currently open', 'error')
             return redirect(url_for('student_dashboard'))
 
-        # fetch questions (limit to 10)
-        cursor.execute("SELECT * FROM feedbackquestions ORDER BY question_id LIMIT 10")
-        questions = cursor.fetchall()
+        questions = run_query("SELECT * FROM feedbackquestions ORDER BY question_id LIMIT 10",
+                              fetchall=True, dictionary=True)
 
-        # check if student already submitted structured remarks
-        cursor.execute("SELECT * FROM feedbackremarks WHERE student_id=%s AND session_id=%s", (student_id, session_id))
-        remarks = cursor.fetchone()
+        remarks = run_query("SELECT * FROM feedbackremarks WHERE student_id=%s AND session_id=%s",
+                             (student_id, session_id), fetchone=True, dictionary=True)
 
         return render_template('feedback_form.html', session=fs, questions=questions, remarks=remarks)
-    finally:
-        cursor.close()
-        conn.close()
+    except mysql.connector.Error as err:
+        flash(f'Database error: {err}', 'error')
+        return redirect(url_for('student_dashboard'))
 
 
 @app.route('/submit_feedback/<session_id>', methods=['POST'])
@@ -685,43 +700,52 @@ def submit_feedback(session_id):
         return redirect(url_for('login'))
 
     student_id = session['user_id']
-    conn = get_db_connection()
-    if not conn:
-        flash('Database connection error', 'error')
-        return redirect(url_for('student_dashboard'))
-
-    cursor = conn.cursor()
     try:
-        # store ratings for 10 questions
+        course_id = request.form.get('course_id')
+        faculty_id = request.form.get('faculty_id')
+        if not course_id or not faculty_id:
+            row = run_query("SELECT course_id, faculty_id FROM feedbacksession WHERE session_id=%s",
+                            (session_id,), fetchone=True)
+            if row:
+                course_id = course_id or row[0]
+                faculty_id = faculty_id or row[1]
+
+        if not course_id or not faculty_id:
+            flash('Unable to determine course or faculty for this feedback session.', 'error')
+            return redirect(url_for('student_dashboard'))
+
         for i in range(1, 11):
             qid = request.form.get(f'question_{i}_id')
             rating = request.form.get(f'question_{i}')
             if qid and rating:
                 resp_id = f"{session_id}_{student_id}_{i}"
                 try:
-                    cursor.execute("INSERT INTO feedbackresponses (response_id, student_id, session_id, course_id, faculty_id, question_id, rating) VALUES (%s,%s,%s,%s,%s,%s,%s)",
-                                   (resp_id, student_id, session_id, request.form.get('course_id'), request.form.get('faculty_id'), qid, int(rating)))
+                    run_query(
+                        "INSERT INTO feedbackresponses (response_id, student_id, session_id, course_id, faculty_id, question_id, rating) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                        (resp_id, student_id, session_id, course_id, faculty_id, qid, int(rating)),
+                        commit=True
+                    )
                 except mysql.connector.IntegrityError:
-                    # ignore duplicates
                     pass
 
-        # store free-form comments
         comments = request.form.get('comments')
 
         try:
-            cursor.execute("INSERT INTO feedbackremarks (student_id, session_id, comments) VALUES (%s,%s,%s)",
-                           (student_id, session_id, comments))
+            run_query(
+                "INSERT INTO feedbackremarks (student_id, session_id, comments) VALUES (%s,%s,%s)",
+                (student_id, session_id, comments),
+                commit=True
+            )
         except mysql.connector.IntegrityError:
-            cursor.execute("UPDATE feedbackremarks SET comments=%s WHERE student_id=%s AND session_id=%s",
-                           (comments, student_id, session_id))
+            run_query(
+                "UPDATE feedbackremarks SET comments=%s WHERE student_id=%s AND session_id=%s",
+                (comments, student_id, session_id),
+                commit=True
+            )
 
-        conn.commit()
         flash('Feedback submitted. Thank you!', 'success')
     except mysql.connector.Error as err:
         flash(f'Error submitting feedback: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
 
     return redirect(url_for('student_dashboard'))
 
@@ -731,35 +755,52 @@ def admin_feedback_report(session_id):
     if 'user_id' not in session or session.get('user_type') != 'admin':
         return redirect(url_for('login'))
 
-    conn = get_db_connection()
-    if not conn:
-        flash('Database connection error', 'error')
-        return redirect(url_for('admin_dashboard'))
-
-    cursor = conn.cursor(dictionary=True)
     try:
-        # Ensure session exists
-        cursor.execute("SELECT * FROM feedbacksession WHERE session_id=%s", (session_id,))
-        fs = cursor.fetchone()
+        fs = run_query(
+            """
+            SELECT fs.*, c.course_name, f.name AS faculty_name
+            FROM feedbacksession fs
+            LEFT JOIN courses c ON fs.course_id = c.course_id
+            LEFT JOIN faculty f ON fs.faculty_id = f.faculty_id
+            WHERE fs.session_id=%s
+            """,
+            (session_id,), fetchone=True, dictionary=True
+        )
         if not fs:
             flash('Feedback session not found', 'error')
             return redirect(url_for('admin_dashboard'))
 
-        # compute average rating per question and overall
-        cursor.execute("SELECT question_id, AVG(rating) as avg_rating FROM feedbackresponses WHERE session_id=%s GROUP BY question_id", (session_id,))
-        per_question = cursor.fetchall()
+        per_question = run_query(
+            "SELECT question_id, AVG(rating) as avg_rating FROM feedbackresponses WHERE session_id=%s GROUP BY question_id",
+            (session_id,), fetchall=True, dictionary=True
+        )
+        overall = run_query("SELECT AVG(rating) as overall_avg FROM feedbackresponses WHERE session_id=%s",
+                            (session_id,), fetchone=True, dictionary=True)
+        response_details = run_query(
+            """
+            SELECT fr.question_id, fr.rating, fr.student_id, s.name AS student_name
+            FROM feedbackresponses fr
+            LEFT JOIN students s ON fr.student_id = s.student_id
+            WHERE fr.session_id=%s
+            ORDER BY fr.student_id, fr.question_id
+            """,
+            (session_id,), fetchall=True, dictionary=True
+        )
+        remarks = run_query(
+            """
+            SELECT fr.*, s.name AS student_name
+            FROM feedbackremarks fr
+            LEFT JOIN students s ON fr.student_id = s.student_id
+            WHERE fr.session_id=%s
+            """,
+            (session_id,), fetchall=True, dictionary=True
+        )
 
-        cursor.execute("SELECT AVG(rating) as overall_avg FROM feedbackresponses WHERE session_id=%s", (session_id,))
-        overall = cursor.fetchone()
-
-        # fetch remarks
-        cursor.execute("SELECT * FROM feedbackremarks WHERE session_id=%s", (session_id,))
-        remarks = cursor.fetchall()
-
-        return render_template('feedback_report.html', session=fs, per_question=per_question, overall=overall, remarks=remarks)
-    finally:
-        cursor.close()
-        conn.close()
+        return render_template('feedback_report.html', session=fs, per_question=per_question, overall=overall,
+                               remarks=remarks, response_details=response_details)
+    except mysql.connector.Error as err:
+        flash(f'Database error: {err}', 'error')
+        return redirect(url_for('admin_dashboard'))
 
 
 @app.route('/close_feedback_session/<session_id>', methods=['POST'])
@@ -767,23 +808,56 @@ def close_feedback_session(session_id):
     if 'user_id' not in session or session.get('user_type') != 'admin':
         return redirect(url_for('login'))
 
-    conn = get_db_connection()
-    if not conn:
-        flash('Database connection error', 'error')
-        return redirect(url_for('admin_dashboard'))
-
-    cursor = conn.cursor()
     try:
-        cursor.execute("UPDATE feedbacksession SET status=%s WHERE session_id=%s", ('Closed', session_id))
-        conn.commit()
+        run_query("UPDATE feedbacksession SET status=%s WHERE session_id=%s",
+                  ('Closed', session_id), commit=True)
         flash('Session closed successfully', 'success')
     except mysql.connector.Error as err:
         flash(f'Error closing session: {err}', 'error')
-    finally:
-        cursor.close()
-        conn.close()
 
     return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/faculty_feedback_report/<session_id>')
+def faculty_feedback_report(session_id):
+    if 'user_id' not in session or session.get('user_type') != 'faculty':
+        return redirect(url_for('login'))
+
+    faculty_id = session['user_id']
+    try:
+        fs = run_query(
+            """
+            SELECT fs.*, c.course_name
+            FROM feedbacksession fs
+            LEFT JOIN courses c ON fs.course_id = c.course_id
+            WHERE fs.session_id=%s AND fs.faculty_id=%s
+            """,
+            (session_id, faculty_id), fetchone=True, dictionary=True
+        )
+        if not fs:
+            flash('Feedback session not found', 'error')
+            return redirect(url_for('faculty_dashboard'))
+
+        per_question = run_query(
+            "SELECT question_id, AVG(rating) AS avg_rating FROM feedbackresponses WHERE session_id=%s GROUP BY question_id",
+            (session_id,), fetchall=True, dictionary=True
+        )
+        overall = run_query("SELECT AVG(rating) AS overall_avg FROM feedbackresponses WHERE session_id=%s",
+                            (session_id,), fetchone=True, dictionary=True)
+        remarks = run_query(
+            "SELECT comments FROM feedbackremarks WHERE session_id=%s",
+            (session_id,), fetchall=True, dictionary=True
+        )
+        evaluation = run_query(
+            "SELECT strength, area_of_improvement, ai_summary FROM evaluationreport WHERE session_id=%s",
+            (session_id,), fetchone=True, dictionary=True
+        )
+
+        return render_template('faculty_feedback_report.html', session=fs, per_question=per_question,
+                               overall=overall, remarks=remarks, evaluation=evaluation)
+    except mysql.connector.Error as err:
+        flash(f'Database error: {err}', 'error')
+        return redirect(url_for('faculty_dashboard'))
 
 @app.route('/logout')
 def logout():

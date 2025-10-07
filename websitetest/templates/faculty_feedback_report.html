@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h3>Session Summary: {{ session.session_id }} - {{ session.course_name or session.course_id }}</h3>
+    <p>Window: {{ session.start_date }} → {{ session.end_date }}</p>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>Overall Average Score</h5>
+            <p class="display-6">{{ '%.2f'|format(overall.overall_avg) if overall and overall.overall_avg else 'N/A' }}</p>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>Average per Question</h5>
+            <ul class="list-group">
+                {% for pq in per_question %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>{{ pq.question_id }}</span>
+                    <span class="badge bg-primary rounded-pill">{{ '%.2f'|format(pq.avg_rating) }}</span>
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted">No ratings yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>Student Comments</h5>
+            {% if remarks %}
+            <ul class="list-group">
+                {% for r in remarks %}
+                <li class="list-group-item">{{ r.comments }}</li>
+                {% else %}
+                <li class="list-group-item text-muted">No comments submitted yet.</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted mb-0">No remarks yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5>AI Summary</h5>
+            {% if evaluation %}
+            <p class="mb-1"><strong>Strength:</strong> {{ evaluation.strength or '—' }}</p>
+            <p class="mb-1"><strong>Area of Improvement:</strong> {{ evaluation.area_of_improvement or '—' }}</p>
+            <p class="mb-0"><strong>AI Summary:</strong> {{ evaluation.ai_summary or '—' }}</p>
+            {% else %}
+            <p class="text-muted mb-0">Summary will appear here once generated.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

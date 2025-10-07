@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container mt-4">
     <h3>Feedback Form for {{ session.session_id }} - {{ session.course_id }}</h3>
-    <p>Faculty: {{ session.faculty_id if session.faculty_id is defined else 'N/A' }} | Opens: {{ session.start_date }} | Closes: {{ session.end_date }}</p>
+    <p>Faculty: {{ session.faculty_name if session.faculty_name is defined else session.faculty_id }} | Opens: {{ session.start_date }} | Closes: {{ session.end_date }}</p>
 
     <form method="POST" action="{{ url_for('submit_feedback', session_id=session.session_id) }}">
         <input type="hidden" name="course_id" value="{{ session.course_id }}">
@@ -142,8 +142,8 @@
             </div>
         </div>
 
-    <h5>Comments</h5>
-    <textarea class="form-control mb-2" name="comments" rows="4" placeholder="Share your thoughts about the course and instructor">{{ remarks.comments if remarks }}</textarea>
+    <h5>Your Comments</h5>
+    <textarea class="form-control mb-2" name="comments" rows="4" placeholder="Share your thoughts on the course and instructor.">{{ remarks.comments if remarks }}</textarea>
 
         <button class="btn btn-primary mt-3" type="submit">Submit Feedback</button>
     </form>

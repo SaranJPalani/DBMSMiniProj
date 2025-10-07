@@ -2,8 +2,8 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h3>Feedback Report for {{ session.session_id }} - {{ session.course_id }}</h3>
-    <p>Faculty: {{ session.faculty_id }} | Opened: {{ session.start_date }} | Closed: {{ session.end_date }}</p>
+    <h3>Feedback Report for {{ session.session_id }} - {{ session.course_name or session.course_id }}</h3>
+    <p>Faculty: {{ session.faculty_name or session.faculty_id }} | Opens: {{ session.start_date }} | Closes: {{ session.end_date }}</p>
 
     <div class="card mb-3">
         <div class="card-body">
@@ -24,13 +24,43 @@
         </div>
     </div>
 
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>Individual Ratings</h5>
+            {% if response_details %}
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Question</th>
+                            <th>Rating</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in response_details %}
+                        <tr>
+                            <td>{{ row.student_name or row.student_id }}</td>
+                            <td>{{ row.question_id }}</td>
+                            <td>{{ row.rating }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">No responses recorded.</p>
+            {% endif %}
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-body">
-            <h5>Student Comments</h5>
+            <h5>Student Remarks</h5>
             {% for r in remarks %}
             <div class="mb-3">
-                <strong>{{ r.student_id }}</strong>
-                <p class="mb-0">{{ r.comments or '—' }}</p>
+                <strong>{{ r.student_name or r.student_id }}</strong>
+                <p class="mb-0"><strong>Comment:</strong> {{ r.comments or '—' }}</p>
                 <hr>
             </div>
             {% else %}

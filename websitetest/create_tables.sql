@@ -71,11 +71,13 @@ CREATE TABLE taughtby (
 CREATE TABLE feedbacksession (
     session_id VARCHAR(20) NOT NULL,
     course_id VARCHAR(20),
+    faculty_id VARCHAR(20),
     start_date DATETIME NOT NULL,
     end_date DATETIME NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'Active',
     PRIMARY KEY (session_id),
-    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE SET NULL ON UPDATE CASCADE
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE SET NULL ON UPDATE CASCADE,
+    FOREIGN KEY (faculty_id) REFERENCES faculty(faculty_id) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- 7. Feedback_Questions Table
@@ -179,9 +181,9 @@ INSERT INTO feedbackquestions (question_id, question_text) VALUES
 ('Q010', 'Would you recommend this teacher/course to others?');
 
 -- Sample Feedback Session
-INSERT INTO feedbacksession (session_id, course_id, start_date, end_date, status) VALUES
-('SES001', 'CRS001', '2025-09-01 09:00:00', '2025-09-30 23:59:59', 'Active'),
-('SES002', 'CRS002', '2025-09-01 09:00:00', '2025-09-30 23:59:59', 'Active');
+INSERT INTO feedbacksession (session_id, course_id, faculty_id, start_date, end_date, status) VALUES
+('SES001', 'CRS001', 'FAC001', '2025-09-01 09:00:00', '2025-09-30 23:59:59', 'Active'),
+('SES002', 'CRS002', 'FAC001', '2025-09-01 09:00:00', '2025-09-30 23:59:59', 'Active');
 
 -- Sample Feedback Responses
 INSERT INTO feedbackresponses (response_id, student_id, session_id, course_id, faculty_id, question_id, rating, sub_date) VALUES
@@ -191,10 +193,9 @@ INSERT INTO feedbackresponses (response_id, student_id, session_id, course_id, f
 ('RES004', 'STU002', 'SES001', 'CRS001', 'FAC001', 'Q002', 5, '2025-09-16 10:16:00');
 
 -- Sample Feedback Comments
--- Sample Feedback Remarks (single comment per student)
 INSERT INTO feedbackremarks (student_id, session_id, comments) VALUES
-('STU001', 'SES001', 'Clear explanations with structured lectures but could benefit from more hands-on labs.'),
-('STU002', 'SES001', 'Good pacing and coverage overall; adding deeper practical examples would help.');
+('STU001', 'SES001', 'Clear explanations and structured lectures. Include more hands-on labs. Great energy in class.'),
+('STU002', 'SES001', 'Good pacing and coverage. Add deeper practical examples. Would love more case studies.');
 
 -- Sample Evaluation Report
 INSERT INTO evaluationreport (report_id, session_id, course_id, faculty_id, strength, area_of_improvement, ai_summary, sentiment_score) VALUES
