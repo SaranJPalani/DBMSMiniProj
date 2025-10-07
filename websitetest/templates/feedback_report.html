@@ -26,13 +26,11 @@
 
     <div class="card">
         <div class="card-body">
-            <h5>Remarks (Strengths / Weaknesses / Area of Improvement)</h5>
+            <h5>Student Comments</h5>
             {% for r in remarks %}
             <div class="mb-3">
                 <strong>{{ r.student_id }}</strong>
-                <p><strong>Strengths:</strong> {{ r.strengths }}</p>
-                <p><strong>Weaknesses:</strong> {{ r.weaknesses }}</p>
-                <p><strong>Area of Improvement:</strong> {{ r.area_of_improvement }}</p>
+                <p class="mb-0">{{ r.comments or '—' }}</p>
                 <hr>
             </div>
             {% else %}
