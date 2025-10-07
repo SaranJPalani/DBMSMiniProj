@@ -104,14 +104,11 @@ CREATE TABLE feedbackresponses (
     CHECK (rating BETWEEN 1 AND 5)
 );
 
--- 9. Feedback_Comments Table
--- 9. Feedback Remarks Table (store structured feedback remarks instead of a single comment)
+-- 9. Feedback Remarks Table (store raw student comments for downstream AI processing)
 CREATE TABLE feedbackremarks (
     student_id VARCHAR(20) NOT NULL,
     session_id VARCHAR(20) NOT NULL,
-    strengths TEXT,
-    weaknesses TEXT,
-    area_of_improvement TEXT,
+    comments TEXT,
     PRIMARY KEY (student_id, session_id),
     FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (session_id) REFERENCES feedbacksession(session_id) ON DELETE CASCADE ON UPDATE CASCADE
@@ -194,10 +191,10 @@ INSERT INTO feedbackresponses (response_id, student_id, session_id, course_id, f
 ('RES004', 'STU002', 'SES001', 'CRS001', 'FAC001', 'Q002', 5, '2025-09-16 10:16:00');
 
 -- Sample Feedback Comments
--- Sample Feedback Remarks (strengths, weaknesses, area_of_improvement)
-INSERT INTO feedbackremarks (student_id, session_id, strengths, weaknesses, area_of_improvement) VALUES
-('STU001', 'SES001', 'Clear explanations and structured lectures', 'Not enough hands-on labs', 'Include more lab exercises and examples'),
-('STU002', 'SES001', 'Good pacing and coverage', 'Lacked deeper practical examples', 'Add case studies and projects');
+-- Sample Feedback Remarks (single comment per student)
+INSERT INTO feedbackremarks (student_id, session_id, comments) VALUES
+('STU001', 'SES001', 'Clear explanations with structured lectures but could benefit from more hands-on labs.'),
+('STU002', 'SES001', 'Good pacing and coverage overall; adding deeper practical examples would help.');
 
 -- Sample Evaluation Report
 INSERT INTO evaluationreport (report_id, session_id, course_id, faculty_id, strength, area_of_improvement, ai_summary, sentiment_score) VALUES

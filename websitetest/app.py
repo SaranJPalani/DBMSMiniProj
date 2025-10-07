@@ -705,17 +705,15 @@ def submit_feedback(session_id):
                     # ignore duplicates
                     pass
 
-        # store structured remarks (replace comments)
-        strengths = request.form.get('strengths')
-        weaknesses = request.form.get('weaknesses')
-        area = request.form.get('area_of_improvement')
+        # store free-form comments
+        comments = request.form.get('comments')
 
         try:
-            cursor.execute("INSERT INTO feedbackremarks (student_id, session_id, strengths, weaknesses, area_of_improvement) VALUES (%s,%s,%s,%s,%s)",
-                           (student_id, session_id, strengths, weaknesses, area))
+            cursor.execute("INSERT INTO feedbackremarks (student_id, session_id, comments) VALUES (%s,%s,%s)",
+                           (student_id, session_id, comments))
         except mysql.connector.IntegrityError:
-            cursor.execute("UPDATE feedbackremarks SET strengths=%s, weaknesses=%s, area_of_improvement=%s WHERE student_id=%s AND session_id=%s",
-                           (strengths, weaknesses, area, student_id, session_id))
+            cursor.execute("UPDATE feedbackremarks SET comments=%s WHERE student_id=%s AND session_id=%s",
+                           (comments, student_id, session_id))
 
         conn.commit()
         flash('Feedback submitted. Thank you!', 'success')
