@@ -8,7 +8,7 @@
     <div class="card mb-3">
         <div class="card-body">
             <h5>Overall Average Score</h5>
-            <p class="display-6">{{ '%.2f'|format(overall.overall_avg) if overall and overall.overall_avg else 'N/A' }}</p>
+            <p class="display-6">{{ '%.2f'|format(overall_avg) if overall_avg is not none else 'N/A' }}</p>
         </div>
     </div>
 

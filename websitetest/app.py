@@ -774,8 +774,24 @@ def admin_feedback_report(session_id):
             "SELECT question_id, AVG(rating) as avg_rating FROM feedbackresponses WHERE session_id=%s GROUP BY question_id",
             (session_id,), fetchall=True, dictionary=True
         )
-        overall = run_query("SELECT AVG(rating) as overall_avg FROM feedbackresponses WHERE session_id=%s",
-                            (session_id,), fetchone=True, dictionary=True)
+        student_averages = run_query(
+            """
+            SELECT fr.student_id,
+                   s.name AS student_name,
+                   AVG(fr.rating) AS average_rating
+            FROM feedbackresponses fr
+            LEFT JOIN students s ON fr.student_id = s.student_id
+            WHERE fr.session_id=%s
+            GROUP BY fr.student_id, s.name
+            ORDER BY s.name
+            """,
+            (session_id,), fetchall=True, dictionary=True
+        )
+        overall_avg = None
+        if student_averages:
+            ratings = [row['average_rating'] for row in student_averages if row['average_rating'] is not None]
+            if ratings:
+                overall_avg = sum(ratings) / len(ratings)
         response_details = run_query(
             """
             SELECT fr.question_id, fr.rating, fr.student_id, s.name AS student_name
@@ -796,8 +812,8 @@ def admin_feedback_report(session_id):
             (session_id,), fetchall=True, dictionary=True
         )
 
-        return render_template('feedback_report.html', session=fs, per_question=per_question, overall=overall,
-                               remarks=remarks, response_details=response_details)
+        return render_template('feedback_report.html', session=fs, per_question=per_question, overall_avg=overall_avg,
+                               remarks=remarks, response_details=response_details, student_averages=student_averages)
     except mysql.connector.Error as err:
         flash(f'Database error: {err}', 'error')
         return redirect(url_for('admin_dashboard'))
@@ -842,8 +858,15 @@ def faculty_feedback_report(session_id):
             "SELECT question_id, AVG(rating) AS avg_rating FROM feedbackresponses WHERE session_id=%s GROUP BY question_id",
             (session_id,), fetchall=True, dictionary=True
         )
-        overall = run_query("SELECT AVG(rating) AS overall_avg FROM feedbackresponses WHERE session_id=%s",
-                            (session_id,), fetchone=True, dictionary=True)
+        student_scores = run_query(
+            "SELECT AVG(rating) AS average_rating FROM feedbackresponses WHERE session_id=%s GROUP BY student_id",
+            (session_id,), fetchall=True, dictionary=True
+        )
+        overall_avg = None
+        if student_scores:
+            ratings = [row['average_rating'] for row in student_scores if row['average_rating'] is not None]
+            if ratings:
+                overall_avg = sum(ratings) / len(ratings)
         remarks = run_query(
             "SELECT comments FROM feedbackremarks WHERE session_id=%s",
             (session_id,), fetchall=True, dictionary=True
@@ -854,7 +877,7 @@ def faculty_feedback_report(session_id):
         )
 
         return render_template('faculty_feedback_report.html', session=fs, per_question=per_question,
-                               overall=overall, remarks=remarks, evaluation=evaluation)
+                               overall_avg=overall_avg, remarks=remarks, evaluation=evaluation)
     except mysql.connector.Error as err:
         flash(f'Database error: {err}', 'error')
         return redirect(url_for('faculty_dashboard'))
