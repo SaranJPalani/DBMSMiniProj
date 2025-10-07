@@ -21,7 +21,7 @@ def get_db_connection():
         return mysql.connector.connect(
             host='localhost',
             user='root',
-            password='theo1917',
+            password='Saran123$',
             database='DBMSPROJ'
         )
     except mysql.connector.Error:
