@@ -148,12 +148,16 @@ document.addEventListener('DOMContentLoaded', initializeTableInteractions);
 // Form auto-save functionality (for admin forms)
 function initializeAutoSave() {
     const forms = document.querySelectorAll('form');
-    forms.forEach(form => {
+    forms.forEach((form, formIndex) => {
+        // Only auto-save forms that have an explicit id to avoid clobbering
+        // values across multiple identical unnamed forms (e.g. enroll forms).
+        if (!form.id) return;
+
         const inputs = form.querySelectorAll('input, select, textarea');
         inputs.forEach(input => {
             input.addEventListener('input', function() {
                 // Save to localStorage with form ID and input name
-                const formId = form.id || 'default-form';
+                const formId = form.id;
                 const key = `${formId}-${this.name}`;
                 if (this.type !== 'password') {
                     localStorage.setItem(key, this.value);
@@ -167,10 +171,13 @@ function initializeAutoSave() {
 function loadAutoSavedData() {
     const forms = document.querySelectorAll('form');
     forms.forEach(form => {
+        // Only load saved data for forms that have an explicit id
+        if (!form.id) return;
+
         const inputs = form.querySelectorAll('input, select, textarea');
         inputs.forEach(input => {
             if (input.type !== 'password') {
-                const formId = form.id || 'default-form';
+                const formId = form.id;
                 const key = `${formId}-${input.name}`;
                 const savedValue = localStorage.getItem(key);
                 if (savedValue) {
