@@ -21,7 +21,7 @@ def get_db_connection():
         return mysql.connector.connect(
             host='localhost',
             user='root',
-            password='Saran123$',
+            password='DewangMYSQLC@270505',
             database='DBMSPROJ'
         )
     except mysql.connector.Error:
@@ -120,8 +120,10 @@ def student_dashboard():
     student_id = session['user_id']
 
     try:
-        student = run_query("SELECT program FROM students WHERE student_id = %s", (student_id,),
-                             fetchone=True, dictionary=True)
+        student = run_query(
+            "SELECT student_id, name, program FROM students WHERE student_id = %s",
+            (student_id,), fetchone=True, dictionary=True
+        )
         if not student:
             flash('Student not found', 'error')
             return redirect(url_for('login'))
@@ -149,7 +151,6 @@ def student_dashboard():
             """,
             (student_id,), fetchall=True, dictionary=True
         )
-
         active_sessions = run_query(
             """
             SELECT fs.*, c.course_name, f.name AS faculty_name
@@ -172,7 +173,8 @@ def student_dashboard():
                            available_courses=available_courses,
                            enrolled_courses=enrolled_courses,
                            student_program=student_program,
-                           active_sessions=active_sessions)
+                           active_sessions=active_sessions,
+                           student_info=student)
 
 @app.route('/faculty_dashboard')
 def faculty_dashboard():
@@ -215,6 +217,11 @@ def faculty_dashboard():
             (faculty_id,), fetchall=True, dictionary=True
         )
 
+        faculty_info = run_query(
+            "SELECT faculty_id, name, department FROM faculty WHERE faculty_id = %s",
+            (faculty_id,), fetchone=True, dictionary=True
+        )
+
     except mysql.connector.Error as err:
         flash(f'Database error: {err}', 'error')
         return redirect(url_for('login'))
@@ -222,7 +229,8 @@ def faculty_dashboard():
     return render_template('faculty_dashboard.html',
                            taught_courses=taught_courses,
                            course_students=course_students,
-                           faculty_sessions=faculty_sessions)
+                           faculty_sessions=faculty_sessions,
+                           faculty_info=faculty_info)
 
 @app.route('/admin_dashboard')
 def admin_dashboard():
@@ -544,6 +552,8 @@ def enroll_course():
     course_id = request.form.get('course_id')
     student_id = session['user_id']
     
+    print(f"🔍 Enrollment attempt - Student: {student_id}, Course: {course_id}")
+
     if not course_id:
         flash('Please select a course', 'error')
         return redirect(url_for('student_dashboard'))

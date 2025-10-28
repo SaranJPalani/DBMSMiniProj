@@ -16,19 +16,19 @@
                     </div>
                     
                     <nav class="nav flex-column">
-                        <a class="nav-link active" href="#">
+                        <a class="nav-link active" href="#dashboard-overview">
                             <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                         </a>
-                        <a class="nav-link" href="#">
-                            <i class="fas fa-book me-2"></i>My Courses
+                        <a class="nav-link" href="#available-courses">
+                            <i class="fas fa-book me-2"></i>Available Courses
                         </a>
-                        <a class="nav-link" href="#">
-                            <i class="fas fa-chart-bar me-2"></i>Grades
+                        <a class="nav-link" href="#active-feedback">
+                            <i class="fas fa-comments me-2"></i>Feedback Forms
                         </a>
-                        <a class="nav-link" href="#">
-                            <i class="fas fa-calendar me-2"></i>Schedule
+                        <a class="nav-link" href="#enrolled-courses">
+                            <i class="fas fa-graduation-cap me-2"></i>My Courses
                         </a>
-                        <a class="nav-link" href="#">
+                        <a class="nav-link" href="#student-profile">
                             <i class="fas fa-user me-2"></i>Profile
                         </a>
                     </nav>
@@ -36,14 +36,14 @@
             </div>
 
             <!-- Main Content -->
-            <div class="col-md-9 col-lg-10 main-content">
+            <div class="col-md-9 col-lg-10 main-content" id="dashboard-overview">
                 <div class="dashboard-header mb-4">
                     <h1 class="h3 fw-bold">Student Dashboard</h1>
                     <p class="text-muted">Welcome to your student portal</p>
                 </div>
 
                 <!-- Available Courses -->
-                <div class="row mb-4">
+                <div class="row mb-4" id="available-courses">
                     <div class="col-12">
                         <div class="admin-section">
                             <div class="section-header">
@@ -80,7 +80,7 @@
 
                 <!-- Enrolled Courses -->
                 <!-- Active Feedback Sessions -->
-                <div class="row mb-4">
+                <div class="row mb-4" id="active-feedback">
                     <div class="col-12">
                         <div class="admin-section">
                             <div class="section-header">
@@ -108,7 +108,7 @@
                     </div>
                 </div>
 
-                <div class="row">
+                <div class="row" id="enrolled-courses">
                     <div class="col-12">
                         <div class="admin-section">
                             <div class="section-header">
@@ -140,6 +140,34 @@
                             {% else %}
                             <p class="text-muted">You are not enrolled in any courses yet.</p>
                             {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-4" id="student-profile">
+                    <div class="col-12">
+                        <div class="admin-section">
+                            <div class="section-header">
+                                <h4><i class="fas fa-id-card text-primary me-2"></i>Your Profile</h4>
+                            </div>
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-sm-4">
+                                            <p class="mb-1 text-muted">Name</p>
+                                            <h6 class="mb-0">{{ student_info.name or session.user_name }}</h6>
+                                        </div>
+                                        <div class="col-sm-4">
+                                            <p class="mb-1 text-muted">Student ID</p>
+                                            <h6 class="mb-0">{{ student_info.student_id or session.user_id }}</h6>
+                                        </div>
+                                        <div class="col-sm-4">
+                                            <p class="mb-1 text-muted">Program</p>
+                                            <h6 class="mb-0">{{ student_info.program or student_program }}</h6>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -15,35 +15,29 @@
                         <small class="text-muted">Faculty Portal</small>
                     </div>
                     
-                    <nav class="nav flex-column">
-                        <a class="nav-link active" href="#">
-                            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
-                        </a>
-                        <a class="nav-link" href="#">
-                            <i class="fas fa-chalkboard me-2"></i>My Courses
-                        </a>
-                        <a class="nav-link" href="#">
-                            <i class="fas fa-users me-2"></i>Students
-                        </a>
-                        <a class="nav-link" href="#">
-                            <i class="fas fa-chart-line me-2"></i>Analytics
-                        </a>
-                        <a class="nav-link" href="#">
-                            <i class="fas fa-user me-2"></i>Profile
-                        </a>
-                    </nav>
+                        <nav class="nav flex-column">
+                            <a class="nav-link active" href="#dashboard-overview">
+                                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                            </a>
+                            <a class="nav-link" href="#in-progress-feedback">
+                                <i class="fas fa-comment-dots me-2"></i>Feedback Sessions
+                            </a>
+                            <a class="nav-link" href="#faculty-profile">
+                                <i class="fas fa-user me-2"></i>Profile
+                            </a>
+                        </nav>
                 </div>
             </div>
 
             <!-- Main Content -->
-            <div class="col-md-9 col-lg-10 main-content">
+            <div class="col-md-9 col-lg-10 main-content" id="dashboard-overview">
                 <div class="dashboard-header mb-4">
                     <h1 class="h3 fw-bold">Faculty Dashboard</h1>
                     <p class="text-muted">Manage your courses and students</p>
                 </div>
 
                 <!-- Feedback Sessions -->
-                <div class="admin-section mb-4" id="faculty_sessions">
+                <div class="admin-section mb-4" id="in-progress-feedback">
                     <div class="section-header d-flex justify-content-between align-items-center mb-2">
                         <h4><i class="fas fa-comments text-secondary me-2"></i>My Feedback Sessions</h4>
                         <button class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#facultySessionModal" {% if not taught_courses %}disabled{% endif %}>
@@ -85,9 +79,7 @@
                 </div>
 
                 <!-- My Courses -->
-                <div class="row">
-                    <div class="col-12">
-                        <div class="admin-section">
+                <div class="admin-section mb-4" id="assigned-courses">
                             <div class="section-header">
                                 <h4><i class="fas fa-chalkboard text-success me-2"></i>My Assigned Courses</h4>
                             </div>
@@ -139,6 +131,28 @@
                                 <p class="text-muted">You haven't been assigned to any courses yet.</p>
                             </div>
                             {% endif %}
+                </div>
+
+                <div class="admin-section mt-4" id="faculty-profile">
+                    <div class="section-header">
+                        <h4><i class="fas fa-id-card text-primary me-2"></i>Your Profile</h4>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-sm-4">
+                                    <p class="mb-1 text-muted">Name</p>
+                                    <h6 class="mb-0">{{ faculty_info.name or session.user_name }}</h6>
+                                </div>
+                                <div class="col-sm-4">
+                                    <p class="mb-1 text-muted">Faculty ID</p>
+                                    <h6 class="mb-0">{{ faculty_info.faculty_id or session.user_id }}</h6>
+                                </div>
+                                <div class="col-sm-4">
+                                    <p class="mb-1 text-muted">Department</p>
+                                    <h6 class="mb-0">{{ faculty_info.department or "N/A" }}</h6>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

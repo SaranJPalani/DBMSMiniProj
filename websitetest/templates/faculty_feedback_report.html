@@ -7,29 +7,6 @@
 
     <div class="card mb-3">
         <div class="card-body">
-            <h5>Overall Average Score</h5>
-            <p class="display-6">{{ '%.2f'|format(overall_avg) if overall_avg is not none else 'N/A' }}</p>
-        </div>
-    </div>
-
-    <div class="card mb-3">
-        <div class="card-body">
-            <h5>Average per Question</h5>
-            <ul class="list-group">
-                {% for pq in per_question %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span>{{ pq.question_id }}</span>
-                    <span class="badge bg-primary rounded-pill">{{ '%.2f'|format(pq.avg_rating) }}</span>
-                </li>
-                {% else %}
-                <li class="list-group-item text-muted">No ratings yet.</li>
-                {% endfor %}
-            </ul>
-        </div>
-    </div>
-
-    <div class="card mb-3">
-        <div class="card-body">
             <h5>Student Comments</h5>
             {% if remarks %}
             <ul class="list-group">
