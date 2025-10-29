@@ -5,6 +5,7 @@
 USE DBMSPROJ;
 
 -- Drop tables in reverse order to handle foreign key constraints
+DROP TABLE IF EXISTS grades;
 DROP TABLE IF EXISTS feedbackresponses;
 DROP TABLE IF EXISTS feedbackcomments;
 DROP TABLE IF EXISTS evaluationreport;
@@ -130,6 +131,19 @@ CREATE TABLE evaluationreport (
     FOREIGN KEY (session_id) REFERENCES feedbacksession(session_id) ON DELETE SET NULL ON UPDATE CASCADE,
     FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE SET NULL ON UPDATE CASCADE,
     FOREIGN KEY (faculty_id) REFERENCES faculty(faculty_id) ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+-- 11. Grades Table
+CREATE TABLE grades (
+    student_id VARCHAR(20) NOT NULL,
+    course_id VARCHAR(20) NOT NULL,
+    faculty_id VARCHAR(20) NOT NULL,
+    grade ENUM('A+', 'A', 'B+', 'B', 'C', 'F') NOT NULL,
+    date_assigned DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (student_id, course_id),
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (faculty_id) REFERENCES faculty(faculty_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- Insert sample data for testing

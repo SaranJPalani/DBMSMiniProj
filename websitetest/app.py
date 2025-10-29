@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, Response
 import mysql.connector
 import hashlib
 import secrets
@@ -165,6 +165,20 @@ def student_dashboard():
             (student_id,), fetchall=True, dictionary=True
         )
 
+        # Fetch student grades
+        student_grades = {}
+        grades_data = run_query(
+            """
+            SELECT g.course_id, g.grade, g.date_assigned
+            FROM grades g
+            WHERE g.student_id = %s
+            """,
+            (student_id,), fetchall=True, dictionary=True
+        )
+        
+        for grade in grades_data:
+            student_grades[grade['course_id']] = grade
+
     except mysql.connector.Error as err:
         flash(f'Database error: {err}', 'error')
         return redirect(url_for('login'))
@@ -174,7 +188,8 @@ def student_dashboard():
                            enrolled_courses=enrolled_courses,
                            student_program=student_program,
                            active_sessions=active_sessions,
-                           student_info=student)
+                           student_info=student,
+                           student_grades=student_grades)
 
 @app.route('/faculty_dashboard')
 def faculty_dashboard():
@@ -222,6 +237,43 @@ def faculty_dashboard():
             (faculty_id,), fetchone=True, dictionary=True
         )
 
+        # Fetch existing grades for all students in faculty's courses
+        student_grades = {}
+        grades_data = run_query(
+            """
+            SELECT g.student_id, g.course_id, g.grade, g.date_assigned
+            FROM grades g
+            JOIN taughtby tb ON g.course_id = tb.course_id
+            WHERE tb.faculty_id = %s
+            """,
+            (faculty_id,), fetchall=True, dictionary=True
+        )
+        
+        for grade in grades_data:
+            student_grades[(grade['student_id'], grade['course_id'])] = grade
+
+        # Calculate grade distribution for charts
+        grade_distribution = {}
+        for course in taught_courses:
+            course_id = course['course_id']
+            course_grades = run_query(
+                """
+                SELECT grade, COUNT(*) as count
+                FROM grades g
+                WHERE g.course_id = %s AND g.faculty_id = %s
+                GROUP BY grade
+                ORDER BY grade
+                """,
+                (course_id, faculty_id), fetchall=True, dictionary=True
+            )
+            
+            # Initialize all grades to 0
+            distribution = {'A+': 0, 'A': 0, 'B+': 0, 'B': 0, 'C': 0, 'F': 0}
+            for grade_info in course_grades:
+                distribution[grade_info['grade']] = grade_info['count']
+            
+            grade_distribution[course_id] = distribution
+
     except mysql.connector.Error as err:
         flash(f'Database error: {err}', 'error')
         return redirect(url_for('login'))
@@ -230,7 +282,219 @@ def faculty_dashboard():
                            taught_courses=taught_courses,
                            course_students=course_students,
                            faculty_sessions=faculty_sessions,
-                           faculty_info=faculty_info)
+                           faculty_info=faculty_info,
+                           student_grades=student_grades,
+                           grade_distribution=grade_distribution)
+
+@app.route('/assign_grade', methods=['POST'])
+def assign_grade():
+    if 'user_id' not in session or session.get('user_type') != 'faculty':
+        return redirect(url_for('login'))
+    
+    faculty_id = session['user_id']
+    student_id = request.form.get('student_id')
+    course_id = request.form.get('course_id')
+    grade = request.form.get('grade')
+    
+    if not all([student_id, course_id, grade]):
+        flash('All fields are required!', 'error')
+        return redirect(url_for('faculty_dashboard'))
+    
+    try:
+        # Verify that the faculty teaches this course
+        course_check = run_query(
+            "SELECT COUNT(*) as count FROM taughtby WHERE faculty_id = %s AND course_id = %s",
+            (faculty_id, course_id), fetchone=True, dictionary=True
+        )
+        
+        if course_check['count'] == 0:
+            flash('You are not authorized to grade this course!', 'error')
+            return redirect(url_for('faculty_dashboard'))
+        
+        # Verify that the student is enrolled in this course
+        enrollment_check = run_query(
+            "SELECT COUNT(*) as count FROM enroll WHERE student_id = %s AND course_id = %s",
+            (student_id, course_id), fetchone=True, dictionary=True
+        )
+        
+        if enrollment_check['count'] == 0:
+            flash('Student is not enrolled in this course!', 'error')
+            return redirect(url_for('faculty_dashboard'))
+        
+        # Check if grade already exists
+        existing_grade = run_query(
+            "SELECT COUNT(*) as count FROM grades WHERE student_id = %s AND course_id = %s",
+            (student_id, course_id), fetchone=True, dictionary=True
+        )
+        
+        if existing_grade['count'] > 0:
+            # Update existing grade
+            run_query(
+                "UPDATE grades SET grade = %s, faculty_id = %s, date_assigned = CURRENT_TIMESTAMP WHERE student_id = %s AND course_id = %s",
+                (grade, faculty_id, student_id, course_id),
+                commit=True
+            )
+            flash(f'Grade updated successfully for student {student_id}!', 'success')
+        else:
+            # Insert new grade
+            run_query(
+                "INSERT INTO grades (student_id, course_id, faculty_id, grade) VALUES (%s, %s, %s, %s)",
+                (student_id, course_id, faculty_id, grade),
+                commit=True
+            )
+            flash(f'Grade assigned successfully for student {student_id}!', 'success')
+            
+    except mysql.connector.Error as err:
+        flash(f'Database error: {err}', 'error')
+    
+    return redirect(url_for('faculty_dashboard'))
+
+@app.route('/export_grades')
+def export_grades():
+    if 'user_id' not in session or session.get('user_type') != 'faculty':
+        return redirect(url_for('login'))
+    
+    faculty_id = session['user_id']
+    course_id = request.args.get('course_id')
+    format_type = request.args.get('format', 'csv')
+    
+    if not course_id:
+        flash('Course ID is required!', 'error')
+        return redirect(url_for('faculty_dashboard'))
+    
+    try:
+        # Verify faculty teaches this course
+        course_check = run_query(
+            "SELECT COUNT(*) as count FROM taughtby WHERE faculty_id = %s AND course_id = %s",
+            (faculty_id, course_id), fetchone=True, dictionary=True
+        )
+        
+        if course_check['count'] == 0:
+            flash('You are not authorized to export grades for this course!', 'error')
+            return redirect(url_for('faculty_dashboard'))
+        
+        # Get course info
+        course_info = run_query(
+            "SELECT course_name, course_code FROM courses WHERE course_id = %s",
+            (course_id,), fetchone=True, dictionary=True
+        )
+        
+        # Get grades data
+        grades_data = run_query(
+            """
+            SELECT s.student_id, s.name, s.program, 
+                   COALESCE(g.grade, 'NP') as grade
+            FROM students s
+            JOIN enroll e ON s.student_id = e.student_id
+            LEFT JOIN grades g ON s.student_id = g.student_id AND g.course_id = %s
+            WHERE e.course_id = %s
+            ORDER BY s.student_id
+            """,
+            (course_id, course_id), fetchall=True, dictionary=True
+        )
+        
+        if format_type == 'csv':
+            import csv
+            import io
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write header
+            writer.writerow(['Student ID', 'Student Name', 'Program', 'Grade'])
+            
+            # Write data
+            for row in grades_data:
+                writer.writerow([
+                    row['student_id'],
+                    row['name'],
+                    row['program'],
+                    row['grade']
+                ])
+            
+            output.seek(0)
+            
+            return Response(
+                output.getvalue(),
+                mimetype='text/csv',
+                headers={
+                    'Content-Disposition': f'attachment; filename=grades_{course_info["course_code"]}_{course_id}.csv'
+                }
+            )
+        else:
+            flash('Only CSV export is supported!', 'error')
+            return redirect(url_for('faculty_dashboard'))
+    
+    except mysql.connector.Error as err:
+        flash(f'Database error: {err}', 'error')
+        return redirect(url_for('faculty_dashboard'))
+
+@app.route('/export_student_grades')
+def export_student_grades():
+    if 'user_id' not in session or session.get('user_type') != 'student':
+        return redirect(url_for('login'))
+    
+    student_id = session['user_id']
+    format_type = request.args.get('format', 'csv')
+    
+    try:
+        # Get student info
+        student_info = run_query(
+            "SELECT name, program FROM students WHERE student_id = %s",
+            (student_id,), fetchone=True, dictionary=True
+        )
+        
+        # Get grades data
+        grades_data = run_query(
+            """
+            SELECT c.course_code, c.course_name, f.name as faculty_name,
+                   COALESCE(g.grade, 'NP') as grade
+            FROM courses c
+            JOIN enroll e ON c.course_id = e.course_id
+            LEFT JOIN grades g ON c.course_id = g.course_id AND g.student_id = %s
+            LEFT JOIN taughtby tb ON c.course_id = tb.course_id
+            LEFT JOIN faculty f ON tb.faculty_id = f.faculty_id
+            WHERE e.student_id = %s
+            ORDER BY c.course_code
+            """,
+            (student_id, student_id), fetchall=True, dictionary=True
+        )
+        
+        if format_type == 'csv':
+            import csv
+            import io
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write header
+            writer.writerow(['Course Code', 'Course Name', 'Faculty', 'Grade'])
+            
+            # Write data
+            for row in grades_data:
+                writer.writerow([
+                    row['course_code'],
+                    row['course_name'],
+                    row['faculty_name'] or 'Not Assigned',
+                    row['grade']
+                ])
+            
+            output.seek(0)
+            
+            return Response(
+                output.getvalue(),
+                mimetype='text/csv',
+                headers={
+                    'Content-Disposition': f'attachment; filename=my_grades_{student_id}.csv'
+                }
+            )
+        else:
+            flash('Only CSV export is supported!', 'error')
+            return redirect(url_for('student_dashboard'))
+    
+    except mysql.connector.Error as err:
+        flash(f'Database error: {err}', 'error')
+        return redirect(url_for('student_dashboard'))
 
 @app.route('/admin_dashboard')
 def admin_dashboard():
