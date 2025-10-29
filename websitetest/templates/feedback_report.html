@@ -2,22 +2,201 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h3>Feedback Report for {{ session.session_id }} - {{ session.course_name or session.course_id }}</h3>
-    <p>Faculty: {{ session.faculty_name or session.faculty_id }} | Opens: {{ session.start_date }} | Closes: {{ session.end_date }}</p>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3><i class="fas fa-chart-line me-2"></i>Admin Feedback Report</h3>
+            <p class="text-muted mb-0">Session: {{ session.session_id }} - {{ session.course_name or session.course_id }}</p>
+            <small class="text-muted">Faculty: {{ session.faculty_name or session.faculty_id }} | Period: {{ session.start_date.strftime('%Y-%m-%d %H:%M') }} → {{ session.end_date.strftime('%Y-%m-%d %H:%M') }}</small>
+        </div>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+        </a>
+    </div>
 
-
-    <div class="card">
+    <!-- Overall Statistics -->
+    {% if overall_avg %}
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Overall Statistics</h5>
+        </div>
         <div class="card-body">
-            <h5>Student Remarks</h5>
-            {% for r in remarks %}
-            <div class="mb-3">
-                <strong>{{ r.student_name or r.student_id }}</strong>
-                <p class="mb-0"><strong>Comment:</strong> {{ r.comments or '—' }}</p>
-                <hr>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center">
+                            <h4 class="mb-1">{{ "%.2f"|format(overall_avg) }}/5.0</h4>
+                            <p class="mb-0">Average Rating</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center">
+                            <h4 class="mb-1">{{ student_averages|length }}</h4>
+                            <p class="mb-0">Total Responses</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-warning text-dark">
+                        <div class="card-body text-center">
+                            <h4 class="mb-1">{{ session.status or "Active" }}</h4>
+                            <p class="mb-0">Session Status</p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            {% else %}
-            <p class="text-muted">No remarks submitted yet.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Per Question Analysis -->
+    {% if per_question %}
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="fas fa-questions me-2"></i>Question-wise Analysis</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Question ID</th>
+                            <th>Average Rating</th>
+                            <th>Rating Bar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pq in per_question %}
+                        <tr>
+                            <td><strong>Q{{ pq.question_id }}</strong></td>
+                            <td>{{ "%.2f"|format(pq.avg_rating) }}/5.0</td>
+                            <td>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar {% if pq.avg_rating >= 4 %}bg-success{% elif pq.avg_rating >= 3 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                         role="progressbar" 
+                                         style="width: {{ (pq.avg_rating / 5 * 100)|round(1) }}%"
+                                         aria-valuenow="{{ pq.avg_rating }}" aria-valuemin="0" aria-valuemax="5">
+                                        {{ "%.1f"|format(pq.avg_rating) }}
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Student Averages -->
+    {% if student_averages %}
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-users me-2"></i>Student Performance Summary</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Student</th>
+                            <th>Student ID</th>
+                            <th>Average Rating</th>
+                            <th>Performance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in student_averages %}
+                        <tr>
+                            <td><strong>{{ student.student_name or "Unknown" }}</strong></td>
+                            <td>{{ student.student_id }}</td>
+                            <td>{{ "%.2f"|format(student.average_rating) }}/5.0</td>
+                            <td>
+                                <span class="badge {% if student.average_rating >= 4 %}bg-success{% elif student.average_rating >= 3 %}bg-warning{% else %}bg-danger{% endif %}">
+                                    {% if student.average_rating >= 4 %}Excellent
+                                    {% elif student.average_rating >= 3 %}Good
+                                    {% else %}Needs Attention{% endif %}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Detailed Response Analysis -->
+    {% if response_details %}
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="fas fa-list-alt me-2"></i>Detailed Response Analysis</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Student</th>
+                            <th>Student ID</th>
+                            <th>Question ID</th>
+                            <th>Rating</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for detail in response_details %}
+                        <tr>
+                            <td>{{ detail.student_name or "Unknown" }}</td>
+                            <td>{{ detail.student_id }}</td>
+                            <td><strong>Q{{ detail.question_id }}</strong></td>
+                            <td>
+                                <span class="badge {% if detail.rating >= 4 %}bg-success{% elif detail.rating >= 3 %}bg-warning{% else %}bg-danger{% endif %}">
+                                    {{ detail.rating }}/5
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Student Comments -->
+    <div class="card">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0"><i class="fas fa-comments me-2"></i>Student Comments</h5>
+        </div>
+        <div class="card-body">
+            {% if remarks %}
+            {% for r in remarks %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="card-title mb-1">
+                                <i class="fas fa-user me-2"></i>{{ r.student_name or "Unknown Student" }}
+                            </h6>
+                            <small class="text-muted">Student ID: {{ r.student_id }}</small>
+                        </div>
+                    </div>
+                    <hr class="my-2">
+                    <div class="mt-2">
+                        <strong>Comment:</strong>
+                        <p class="mb-0 mt-1">{{ r.comments or 'No comments provided.' }}</p>
+                    </div>
+                </div>
+            </div>
             {% endfor %}
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>No comments submitted yet.
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

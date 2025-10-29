@@ -96,10 +96,21 @@
                                     <div>
                                         <strong>{{ s.session_id }}</strong> for <em>{{ s.course_name or s.course_id }}</em>
                                         <div><small>Faculty: {{ s.faculty_name or 'TBD' }}</small></div>
-                                        <div><small>Closes: {{ s.end_date }}</small></div>
+                                        <div><small>Closes: {{ s.end_date.strftime('%Y-%m-%d %H:%M') }}</small></div>
+                                        {% if s.submitted %}
+                                        <div><span class="badge bg-success mt-1"><i class="fas fa-check me-1"></i>Submitted</span></div>
+                                        {% endif %}
                                     </div>
                                     <div>
-                                        <a class="btn btn-primary btn-sm" href="{{ url_for('feedback_form', session_id=s.session_id) }}">Fill Form</a>
+                                        {% if s.submitted %}
+                                        <button class="btn btn-success btn-sm" disabled>
+                                            <i class="fas fa-check me-1"></i>Feedback Submitted
+                                        </button>
+                                        {% else %}
+                                        <a class="btn btn-primary btn-sm" href="{{ url_for('feedback_form', session_id=s.session_id) }}">
+                                            <i class="fas fa-edit me-1"></i>Fill Form
+                                        </a>
+                                        {% endif %}
                                     </div>
                                 </div>
                                 {% endfor %}
