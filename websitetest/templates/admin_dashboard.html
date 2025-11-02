@@ -65,6 +65,10 @@
                             <button type="submit" class="btn btn-sm btn-outline-danger">Close</button>
                           </form>
                         {% endif %}
+                        <!-- Delete session (removes responses, remarks and any AI evaluation) -->
+                        <form method="POST" action="{{ url_for('delete_feedback_session', session_id=s.session_id) }}" style="display:inline-block; margin-left:6px;" onsubmit="return confirm('Delete this feedback session and all its responses? This cannot be undone.');">
+                          <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                        </form>
                       </td>
                     </tr>
                   {% endfor %}

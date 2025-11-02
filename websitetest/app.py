@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, Response
+from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, jsonify
 import mysql.connector
 import hashlib
 import secrets
@@ -197,6 +197,18 @@ def student_dashboard():
         for grade in grades_data:
             student_grades[grade['course_id']] = grade
 
+        # Prepare chart data for student dashboard (labels and numeric grade values)
+        student_chart_labels = [c['course_code'] for c in (enrolled_courses or [])]
+        # Map grade letters to numeric values for plotting
+        grade_to_num = {'A+':95,'A':90,'B+':85,'B':80,'C':70,'F':50}
+        student_chart_values = []
+        for c in (enrolled_courses or []):
+            g = student_grades.get(c['course_id'])
+            if g and g.get('grade') in grade_to_num:
+                student_chart_values.append(grade_to_num[g.get('grade')])
+            else:
+                student_chart_values.append(0)
+
     except mysql.connector.Error as err:
         flash(f'Database error: {err}', 'error')
         return redirect(url_for('login'))
@@ -207,7 +219,9 @@ def student_dashboard():
                            student_program=student_program,
                            active_sessions=active_sessions,
                            student_info=student,
-                           student_grades=student_grades)
+                           student_grades=student_grades,
+                           student_chart_labels=student_chart_labels,
+                           student_chart_values=student_chart_values)
 
 @app.route('/faculty_dashboard')
 def faculty_dashboard():
@@ -303,6 +317,74 @@ def faculty_dashboard():
                            faculty_info=faculty_info,
                            student_grades=student_grades,
                            grade_distribution=grade_distribution)
+
+
+@app.route('/faculty/grade_counts/<course_id>')
+def faculty_grade_counts(course_id):
+    # Return counts for each grade for a given course (faculty-only)
+    if 'user_id' not in session or session.get('user_type') != 'faculty':
+        return jsonify({'error': 'unauthorized'}), 403
+
+    faculty_id = session.get('user_id')
+
+    # verify faculty teaches the course
+    ok = run_query(
+        "SELECT 1 FROM taughtby WHERE faculty_id=%s AND course_id=%s LIMIT 1",
+        (faculty_id, course_id), fetchone=True, dictionary=True
+    )
+    if not ok:
+        return jsonify({'error': 'forbidden'}), 403
+
+    try:
+        rows = run_query(
+            "SELECT grade, COUNT(*) AS cnt FROM grades WHERE course_id=%s GROUP BY grade",
+            (course_id,), fetchall=True, dictionary=True
+        ) or []
+
+        grade_order = ['A+', 'A', 'B+', 'B', 'C', 'F']
+        counts_map = {r['grade']: int(r['cnt']) for r in rows}
+        counts = [counts_map.get(g, 0) for g in grade_order]
+
+        return jsonify({'labels': grade_order, 'counts': counts})
+    except mysql.connector.Error as err:
+        return jsonify({'error': str(err)}), 500
+
+
+@app.route('/faculty/pass_fail/<course_id>')
+def faculty_pass_fail(course_id):
+    # Return pass/fail counts for a course (faculty-only)
+    if 'user_id' not in session or session.get('user_type') != 'faculty':
+        return jsonify({'error': 'unauthorized'}), 403
+
+    faculty_id = session.get('user_id')
+
+    # verify faculty teaches the course
+    ok = run_query(
+        "SELECT 1 FROM taughtby WHERE faculty_id=%s AND course_id=%s LIMIT 1",
+        (faculty_id, course_id), fetchone=True, dictionary=True
+    )
+    if not ok:
+        return jsonify({'error': 'forbidden'}), 403
+
+    try:
+        row_pass = run_query(
+            "SELECT COUNT(*) AS cnt FROM grades WHERE course_id=%s AND grade != 'F'",
+            (course_id,), fetchone=True, dictionary=True
+        ) or {'cnt': 0}
+        row_fail = run_query(
+            "SELECT COUNT(*) AS cnt FROM grades WHERE course_id=%s AND grade = 'F'",
+            (course_id,), fetchone=True, dictionary=True
+        ) or {'cnt': 0}
+
+        passed = int(row_pass['cnt'])
+        failed = int(row_fail['cnt'])
+        total = passed + failed
+        passed_pct = round((passed / total) * 100, 1) if total > 0 else 0.0
+        failed_pct = round((failed / total) * 100, 1) if total > 0 else 0.0
+
+        return jsonify({'passed': passed, 'failed': failed, 'total': total, 'passed_pct': passed_pct, 'failed_pct': failed_pct})
+    except mysql.connector.Error as err:
+        return jsonify({'error': str(err)}), 500
 
 @app.route('/assign_grade', methods=['POST'])
 def assign_grade():
@@ -1132,6 +1214,26 @@ def close_feedback_session(session_id):
         flash('Session closed successfully', 'success')
     except mysql.connector.Error as err:
         flash(f'Error closing session: {err}', 'error')
+
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/delete_feedback_session/<session_id>', methods=['POST'])
+def delete_feedback_session(session_id):
+    if 'user_id' not in session or session.get('user_type') != 'admin':
+        return redirect(url_for('login'))
+
+    try:
+        # Remove dependent feedback data first to avoid FK issues and to make deletion explicit
+        run_query("DELETE FROM feedbackresponses WHERE session_id=%s", (session_id,), commit=True)
+        run_query("DELETE FROM feedbackremarks WHERE session_id=%s", (session_id,), commit=True)
+        # Remove any evaluation / AI reports related to this session
+        run_query("DELETE FROM evaluationreport WHERE session_id=%s", (session_id,), commit=True)
+        # Finally remove the session itself
+        run_query("DELETE FROM feedbacksession WHERE session_id=%s", (session_id,), commit=True)
+        flash('Feedback session and all associated responses were deleted', 'success')
+    except mysql.connector.Error as err:
+        flash(f'Error deleting feedback session: {err}', 'error')
 
     return redirect(url_for('admin_dashboard'))
 

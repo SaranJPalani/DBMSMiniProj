@@ -161,6 +161,18 @@
 
                             {% if course_students[course.course_id] %}
                             <div class="table-responsive">
+                                <!-- Grade distribution chart + Pass/Fail pie -->
+                                <div class="row mb-3">
+                                    <div class="col-md-8">
+                                        <canvas id="gradeBarChart-{{ course.course_id }}" height="120"></canvas>
+                                    </div>
+                                    <div class="col-md-4 d-flex align-items-center justify-content-center">
+                                        <div style="width:160px;">
+                                            <canvas id="passFailChart-{{ course.course_id }}" height="160"></canvas>
+                                            <div class="text-center small mt-2" id="passFailLabel-{{ course.course_id }}"></div>
+                                        </div>
+                                    </div>
+                                </div>
                                 <table class="table table-hover">
                                     <thead class="table-warning">
                                         <tr>
@@ -213,6 +225,56 @@
                                     </tbody>
                                 </table>
                             </div>
+                            <script>
+                                (function(){
+                                    const courseId = "{{ course.course_id }}";
+                                    const canvasId = 'gradeBarChart-' + courseId;
+                                    const ctx = document.getElementById(canvasId);
+                                    if (!ctx) return;
+
+                                    fetch(`/faculty/grade_counts/${courseId}`)
+                                        .then(r => r.json())
+                                        .then(data => {
+                                            if (data.error) return;
+                                            new Chart(ctx, {
+                                                type: 'bar',
+                                                data: {
+                                                    labels: data.labels,
+                                                    datasets: [{
+                                                        label: 'Number of students',
+                                                        data: data.counts,
+                                                        backgroundColor: ['#2d9cdb','#1abc9c','#3498db','#9b59b6','#f1c40f','#e74c3c']
+                                                    }]
+                                                },
+                                                options: {
+                                                    plugins: { legend: { display: false } },
+                                                    scales: { y: { beginAtZero: true, precision: 0 } }
+                                                }
+                                            });
+                                        }).catch(err => {
+                                            console.error('Error loading grade distribution', err);
+                                        });
+
+                                    // Load pass/fail pie
+                                    const passFailCtx = document.getElementById('passFailChart-' + courseId);
+                                    fetch(`/faculty/pass_fail/${courseId}`)
+                                        .then(r => r.json())
+                                        .then(p => {
+                                            if (p.error) return;
+                                            const pfData = [p.passed, p.failed];
+                                            new Chart(passFailCtx, {
+                                                type: 'pie',
+                                                data: {
+                                                    labels: ['Passed', 'Failed'],
+                                                    datasets: [{ data: pfData, backgroundColor: ['#1abc9c', '#e74c3c'] }]
+                                                },
+                                                options: { plugins: { legend: { position: 'bottom' } } }
+                                            });
+                                            const labelEl = document.getElementById('passFailLabel-' + courseId);
+                                            if (labelEl) labelEl.textContent = `Pass: ${p.passed_pct}% · Fail: ${p.failed_pct}%`;
+                                        }).catch(err => console.error('Error loading pass/fail', err));
+                                })();
+                            </script>
                             {% else %}
                             <p class="text-muted">No students enrolled in this course.</p>
                             {% endif %}

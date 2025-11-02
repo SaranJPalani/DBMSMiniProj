@@ -26,38 +26,51 @@ def setup_test_users():
         cursor.execute("DELETE FROM faculty")   # Remove all faculty
         cursor.execute("DELETE FROM courses")   # Remove all courses
         
-        # Create test students with only 3 programs: Computer Science, IT, Mathematics
-        print("Creating test students...")
-        test_students = [
-            ('S001', 'Aarav Patel', 'aarav.patel@test.com', 'Computer Science', 'password123'),
-            ('S002', 'Diya Sharma', 'diya.sharma@test.com', 'IT', 'password123'),
-            ('S003', 'Ishaan Gupta', 'ishaan.gupta@test.com', 'Mathematics', 'password123'),
-            ('S004', 'Mira Kapoor', 'mira.kapoor@test.com', 'Computer Science', 'password123'),
-            ('S005', 'Arjun Reddy', 'arjun.reddy@test.com', 'IT', 'password123'),
-            ('S006', 'Neha Verma', 'neha.verma@test.com', 'Mathematics', 'password123'),
-            ('S007', 'Rohan Malhotra', 'rohan.malhotra@test.com', 'Computer Science', 'password123'),
-            ('S008', 'Sanya Mehta', 'sanya.mehta@test.com', 'IT', 'password123'),
-            ('S009', 'Karan Bhatia', 'karan.bhatia@test.com', 'Mathematics', 'password123'),
-            ('S010', 'Tara Nair', 'tara.nair@test.com', 'Computer Science', 'password123'),
-            ('S011', 'Vikram Singh', 'vikram.singh@test.com', 'IT', 'password123'),
-            ('S012', 'Anika Bose', 'anika.bose@test.com', 'Mathematics', 'password123'),
-            ('S013', 'Dev Khanna', 'dev.khanna@test.com', 'Computer Science', 'password123'),
-            ('S014', 'Ira Desai', 'ira.desai@test.com', 'IT', 'password123'),
-            ('S015', 'Kabir Jain', 'kabir.jain@test.com', 'Mathematics', 'password123'),
-            ('S016', 'Leela Iyer', 'leela.iyer@test.com', 'Computer Science', 'password123'),
-            ('S017', 'Manav Joshi', 'manav.joshi@test.com', 'IT', 'password123'),
-            ('S018', 'Nisha Kulkarni', 'nisha.kulkarni@test.com', 'Mathematics', 'password123'),
-            ('S019', 'Om Prakash', 'om.prakash@test.com', 'Computer Science', 'password123'),
-            ('S020', 'Pari Saxena', 'pari.saxena@test.com', 'IT', 'password123')
+        # Create 60 test students with 3 programs cycling: Computer Science, IT, Mathematics
+        print("Creating 60 test students...")
+        first_names = [
+            'Aarav','Diya','Ishaan','Mira','Arjun','Neha','Rohan','Sanya','Karan','Tara',
+            'Vikram','Anika','Dev','Ira','Kabir','Leela','Manav','Nisha','Om','Pari',
+            'Siddharth','Rhea','Aditya','Meera','Kunal','Pooja','Sameer','Ananya','Rahul','Ritika',
+            'Yash','Kavya','Nimisha','Rajat','Soham','Priya','Zoya','Kiran','Harsh','Nitika',
+            'Ragini','Ishita','Mayank','Tanvi','Aman','Nidhi','Akash','Esha','Vansh','Suhana',
+            'Keshav','Trisha','Arnav','Sarika','Naveen','Prisha','Yuvraj','Mitali','Rudra','Anvi'
+        ]
+        last_names = [
+            'Patel','Sharma','Gupta','Kapoor','Reddy','Verma','Malhotra','Mehta','Bhatia','Nair',
+            'Singh','Bose','Khanna','Desai','Jain','Iyer','Joshi','Kulkarni','Prakash','Saxena',
+            'Kumar','Agarwal','Chowdhury','Chadha','Shah','Sethi','Chopra','Roy','Kohli','Garg',
+            'Bhardwaj','Pandey','Saxena','Tiwari','Rao','Naik','Biswas','Ghosh','Saini','Pandit',
+            'Mehra','Dutta','Bhatt','Khandelwal','Kapoor','Mahajan','Raman','Bose','Shukla','Goyal',
+            'Bhattacharya','Chakraborty','Saxena','Mishra','Bedi','Sinha','Jha','Rao','Malik','Ahuja'
         ]
 
-        for student_id, name, email, program, password in test_students:
+        programs = ['Computer Science', 'IT', 'Mathematics']
+
+        # collect created students for summary output
+        test_students = []
+
+        for i in range(1, 61):
+            student_id = f"S{i:03d}"
+            fn = first_names[(i-1) % len(first_names)]
+            ln = last_names[(i-1) % len(last_names)]
+            name = f"{fn} {ln}"
+            # create an email that's likely unique
+            email = f"{fn.lower()}.{ln.lower()}{i:03d}@test.com"
+            program = programs[(i-1) % len(programs)]
+            password = 'password123'
             password_hash = custom_hash(password)
-            cursor.execute("""
-                INSERT INTO students (student_id, name, email, program, password_hash)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (student_id, name, email, program, password_hash))
-            print(f"Created student: {name} (ID: {student_id}, Email: {email}, Program: {program})")
+            try:
+                cursor.execute("""
+                    INSERT INTO students (student_id, name, email, program, password_hash)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (student_id, name, email, program, password_hash))
+                # append only on successful insert
+                test_students.append((student_id, name, email, program, password_hash))
+                print(f"Created student: {name} (ID: {student_id}, Email: {email}, Program: {program})")
+            except mysql.connector.Error as err:
+                # If duplicate or other error, print and continue
+                print(f"Warning: couldn't create {student_id} - {err}")
         
         # Create test faculty with matching departments
         print("Creating test faculty...")
@@ -104,10 +117,13 @@ def setup_test_users():
         print("\n✅ Test users created successfully!")
         print("\n📝 Test Login Credentials:")
         print("STUDENTS (all use password: password123):")
-        for student_id, name, email, program, _ in test_students[:5]:
-            print(f"- {name} | ID: {student_id} | Email: {email} | Program: {program}")
-        if len(test_students) > 5:
-            print(f"  ...and {len(test_students) - 5} more test students")
+        if test_students:
+            for student_id, name, email, program, _ in test_students[:5]:
+                print(f"- {name} | ID: {student_id} | Email: {email} | Program: {program}")
+            if len(test_students) > 5:
+                print(f"  ...and {len(test_students) - 5} more test students")
+        else:
+            print("No test students were created.")
 
         print("\nFACULTY (all use password: faculty123):")
         for faculty_id, name, email, department, _ in test_faculty:

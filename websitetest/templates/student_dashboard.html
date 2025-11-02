@@ -151,6 +151,115 @@
                                     </tbody>
                                 </table>
                             </div>
+                            <!-- Student grades by course chart + Pass/Fail pie -->
+                            <div class="card mt-3">
+                                <div class="card-body">
+                                    <h6 class="mb-3">Your Grades by Course</h6>
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <canvas id="studentGradesChart" height="140"></canvas>
+                                        </div>
+                                        <div class="col-md-4 d-flex align-items-center justify-content-center">
+                                            <div style="width:160px;">
+                                                <canvas id="studentPassFailChart" height="160"></canvas>
+                                                <div class="text-center small mt-2" id="studentPassFailLabel"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <script>
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    // Labels and values prepared server-side for safety
+                                    const labels = {{ student_chart_labels|tojson }};
+                                    const dataValues = {{ student_chart_values|tojson }};
+                                    
+                                    console.log('Student chart data:', { labels, dataValues });
+
+                                    const ctx = document.getElementById('studentGradesChart');
+                                    console.log('Canvas element:', ctx);
+                                    
+                                    if (ctx && labels && dataValues && labels.length > 0) {
+                                        console.log('Creating student chart...');
+                                        try {
+                                            new Chart(ctx, {
+                                                type: 'bar',
+                                                data: {
+                                                    labels: labels,
+                                                    datasets: [{
+                                                        label: 'Grade (mapped)',
+                                                        data: dataValues,
+                                                        backgroundColor: ['#2d9cdb', '#1abc9c', '#3498db', '#9b59b6', '#f1c40f']
+                                                    }]
+                                                },
+                                                options: {
+                                                    responsive: true,
+                                                    scales: {
+                                                        y: {
+                                                            beginAtZero: true,
+                                                            suggestedMax: 100,
+                                                            ticks: {
+                                                                callback: function(value){
+                                                                    if (value >= 92) return 'A+';
+                                                                    if (value >= 88) return 'A';
+                                                                    if (value >= 82) return 'B+';
+                                                                    if (value >= 78) return 'B';
+                                                                    if (value >= 60) return 'C';
+                                                                    if (value >= 0) return 'F';
+                                                                    return value;
+                                                                }
+                                                            }
+                                                        }
+                                                    },
+                                                    plugins: { legend: { display: false } }
+                                                }
+                                            });
+                                            console.log('Student chart created successfully');
+                                        } catch (err) {
+                                            console.error('Error creating student chart:', err);
+                                        }
+                                        
+                                        // Create pass/fail pie chart
+                                        const passFailCtx = document.getElementById('studentPassFailChart');
+                                        if (passFailCtx && dataValues && dataValues.length > 0) {
+                                            // Count passed (>= 60) vs failed (< 60)
+                                            const passed = dataValues.filter(v => v >= 60).length;
+                                            const failed = dataValues.filter(v => v < 60 && v > 0).length; // exclude 0 (no grade)
+                                            const total = passed + failed;
+                                            
+                                            if (total > 0) {
+                                                const passedPct = Math.round((passed / total) * 100);
+                                                const failedPct = Math.round((failed / total) * 100);
+                                                
+                                                new Chart(passFailCtx, {
+                                                    type: 'pie',
+                                                    data: {
+                                                        labels: ['Passed', 'Failed'],
+                                                        datasets: [{ 
+                                                            data: [passed, failed], 
+                                                            backgroundColor: ['#1abc9c', '#e74c3c'] 
+                                                        }]
+                                                    },
+                                                    options: { 
+                                                        responsive: true,
+                                                        plugins: { legend: { position: 'bottom' } } 
+                                                    }
+                                                });
+                                                
+                                                const labelEl = document.getElementById('studentPassFailLabel');
+                                                if (labelEl) labelEl.textContent = `Pass: ${passedPct}% · Fail: ${failedPct}%`;
+                                            }
+                                        }
+                                    } else {
+                                        console.log('Student chart not created:', { 
+                                            hasCtx: !!ctx, 
+                                            hasLabels: !!labels, 
+                                            hasValues: !!dataValues,
+                                            labelsLength: labels ? labels.length : 0
+                                        });
+                                    }
+                                });
+                            </script>
                             {% else %}
                             <p class="text-muted">You are not enrolled in any courses yet.</p>
                             {% endif %}

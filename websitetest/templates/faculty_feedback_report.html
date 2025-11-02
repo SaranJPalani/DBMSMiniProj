@@ -75,7 +75,7 @@
                                 <div class="progress" style="height: 20px;">
                                     <div class="progress-bar {% if pq.avg_rating >= 4 %}bg-success{% elif pq.avg_rating >= 3 %}bg-warning{% else %}bg-danger{% endif %}" 
                                          role="progressbar" 
-                                         style="width: {{ (pq.avg_rating / 5 * 100)|round(1) }}%"
+                                         style="width: { (pq.avg_rating / 5 * 100)|round(1) }%"
                                          aria-valuenow="{{ pq.avg_rating }}" aria-valuemin="0" aria-valuemax="5">
                                         {{ "%.1f"|format(pq.avg_rating) }}
                                     </div>
