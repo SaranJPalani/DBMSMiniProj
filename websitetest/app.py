@@ -2,7 +2,10 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 import mysql.connector
 import hashlib
 import secrets
+import json
 from datetime import datetime
+from aitesting import generate_feedback_summary
+import json
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_change_this'
@@ -74,19 +77,18 @@ def login_post():
     user_id = request.form.get('email')
     password = request.form.get('password')
     
-    if not user_id or not password:
+    if not user_id or not password or not user_type:
         flash('Please fill in all fields', 'error')
         return redirect(url_for('login'))
     
-    if user_id == 'admin' and password == 'admin123':
-        session['user_id'] = 'admin'
-        session['user_type'] = 'admin'
-        session['user_name'] = 'Administrator'
-        flash('Welcome Administrator!', 'success')
-        return redirect(url_for('admin_dashboard'))
-    
     try:
+        # Student login - only allow student credentials (block admin)
         if user_type == 'student':
+            # Block admin credentials in student portal
+            if user_id == 'admin' and password == 'admin123':
+                flash('Admin credentials cannot be used in student portal', 'error')
+                return redirect(url_for('login'))
+                
             user = run_query("SELECT * FROM students WHERE email = %s OR student_id = %s",
                              (user_id, user_id), fetchone=True, dictionary=True)
             if user and verify_password(password, user['password_hash']):
@@ -96,7 +98,17 @@ def login_post():
                 flash(f'Welcome {user["name"]}!', 'success')
                 return redirect(url_for('student_dashboard'))
 
+        # Faculty login - allow both faculty and admin credentials
         elif user_type == 'faculty':
+            # Admin login through faculty portal
+            if user_id == 'admin' and password == 'admin123':
+                session['user_id'] = 'admin'
+                session['user_type'] = 'admin'
+                session['user_name'] = 'Administrator'
+                flash('Welcome Administrator!', 'success')
+                return redirect(url_for('admin_dashboard'))
+            
+            # Regular faculty login
             user = run_query("SELECT * FROM faculty WHERE email = %s OR faculty_id = %s",
                              (user_id, user_id), fetchone=True, dictionary=True)
             if user and verify_password(password, user['password_hash']):
@@ -106,10 +118,24 @@ def login_post():
                 flash(f'Welcome {user["name"]}!', 'success')
                 return redirect(url_for('faculty_dashboard'))
 
+        # Admin portal selection (if you have it in dropdown)
+        elif user_type == 'admin':
+            if user_id == 'admin' and password == 'admin123':
+                session['user_id'] = 'admin'
+                session['user_type'] = 'admin'
+                session['user_name'] = 'Administrator'
+                flash('Welcome Administrator!', 'success')
+                return redirect(url_for('admin_dashboard'))
+
+        # Invalid user type
+        else:
+            flash('Invalid user type selected', 'error')
+            return redirect(url_for('login'))
+
     except mysql.connector.Error as err:
         flash(f'Database error: {err}', 'error')
 
-    flash('Invalid credentials', 'error')
+    flash('Invalid credentials for selected user type', 'error')
     return redirect(url_for('login'))
 
 @app.route('/student_dashboard')
@@ -1245,6 +1271,7 @@ def faculty_feedback_report(session_id):
 
     faculty_id = session['user_id']
     try:
+        # Get session details
         fs = run_query(
             """
             SELECT fs.*, c.course_name
@@ -1254,72 +1281,41 @@ def faculty_feedback_report(session_id):
             """,
             (session_id, faculty_id), fetchone=True, dictionary=True
         )
+        
         if not fs:
             flash('Feedback session not found', 'error')
             return redirect(url_for('faculty_dashboard'))
 
-        # Get all questions for reference
-        questions = run_query(
-            "SELECT * FROM feedbackquestions ORDER BY question_id LIMIT 10",
-            fetchall=True, dictionary=True
-        )
-
-        per_question = run_query(
-            "SELECT question_id, AVG(rating) AS avg_rating FROM feedbackresponses WHERE session_id=%s GROUP BY question_id",
-            (session_id,), fetchall=True, dictionary=True
-        )
-        
-        # Get detailed feedback responses per student
-        detailed_responses = run_query(
-            """
-            SELECT fr.student_id, s.name as student_name, fr.question_id, fq.question_text, fr.rating,
-                   rem.comments
-            FROM feedbackresponses fr
-            JOIN students s ON fr.student_id = s.student_id
-            JOIN feedbackquestions fq ON fr.question_id = fq.question_id
-            LEFT JOIN feedbackremarks rem ON fr.student_id = rem.student_id AND fr.session_id = rem.session_id
-            WHERE fr.session_id = %s
-            ORDER BY fr.student_id, fr.question_id
-            """,
-            (session_id,), fetchall=True, dictionary=True
-        )
-        
-        student_scores = run_query(
-            "SELECT AVG(rating) AS average_rating FROM feedbackresponses WHERE session_id=%s GROUP BY student_id",
-            (session_id,), fetchall=True, dictionary=True
-        )
-        overall_avg = None
-        if student_scores:
-            ratings = [row['average_rating'] for row in student_scores if row['average_rating'] is not None]
-            if ratings:
-                overall_avg = sum(ratings) / len(ratings)
-        remarks = run_query(
-            "SELECT comments FROM feedbackremarks WHERE session_id=%s",
-            (session_id,), fetchall=True, dictionary=True
-        )
-        evaluation = run_query(
-            "SELECT strength, area_of_improvement, ai_summary FROM evaluationreport WHERE session_id=%s",
+        # Check if feedback session has responses
+        response_count = run_query(
+            "SELECT COUNT(*) as count FROM feedbackremarks WHERE session_id=%s",
             (session_id,), fetchone=True, dictionary=True
         )
+        
+        if not response_count or response_count['count'] == 0:
+            ai_summary = None
+            parsed_summary = None
+        else:
+            # Generate AI summary of student comments
+            ai_summary_raw = generate_feedback_summary(session_id)
+            
+            # Try to parse JSON response
+            try:
+                parsed_summary = json.loads(ai_summary_raw)
+                ai_summary = ai_summary_raw  # Keep raw for fallback
+            except json.JSONDecodeError as e:
+                # Fallback to raw text if JSON parsing fails
+                print(f"JSON parsing failed: {e}")
+                print(f"Raw response: {ai_summary_raw}")
+                parsed_summary = None
+                ai_summary = ai_summary_raw
 
-        # Organize detailed responses by student
-        students_feedback = {}
-        for response in detailed_responses:
-            student_id = response['student_id']
-            if student_id not in students_feedback:
-                students_feedback[student_id] = {
-                    'name': response['student_name'],
-                    'responses': {},
-                    'comments': response['comments']
-                }
-            students_feedback[student_id]['responses'][response['question_id']] = {
-                'question_text': response['question_text'],
-                'rating': response['rating']
-            }
-
-        return render_template('faculty_feedback_report.html', session=fs, per_question=per_question,
-                               overall_avg=overall_avg, remarks=remarks, evaluation=evaluation,
-                               questions=questions, students_feedback=students_feedback)
+        return render_template('faculty_ai_summary.html', 
+                             session=fs, 
+                             ai_summary=ai_summary,
+                             parsed_summary=parsed_summary,
+                             response_count=response_count['count'] if response_count else 0)
+                             
     except mysql.connector.Error as err:
         flash(f'Database error: {err}', 'error')
         return redirect(url_for('faculty_dashboard'))
